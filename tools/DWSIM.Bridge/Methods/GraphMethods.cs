@@ -160,7 +160,26 @@ namespace DWSIM.Bridge.Methods
                 ["status"] = go.Status.ToString(),
                 ["calculated"] = obj.Calculated,
                 ["error"] = string.IsNullOrEmpty(obj.ErrorMessage) ? null : obj.ErrorMessage,
-                ["ports"] = ports
+                ["ports"] = ports,
+                ["stream"] = StreamState(obj)
+            };
+        }
+
+        /// <summary>
+        /// The few numbers the canvas colours and labels a material stream by, in SI, so a whole
+        /// flowsheet's worth comes in one call; null for every other object.
+        /// </summary>
+        private static JObject StreamState(ISimulationObject obj)
+        {
+            if (!(obj is DWSIM.Thermodynamics.Streams.MaterialStream ms)) return null;
+            var mix = ms.Phases[0].Properties;
+            return new JObject
+            {
+                ["temperature"] = mix.temperature,
+                ["pressure"] = mix.pressure,
+                ["massFlow"] = mix.massflow,
+                ["molarFlow"] = mix.molarflow,
+                ["vaporFraction"] = ms.Phases.ContainsKey(2) ? ms.Phases[2].Properties.molarfraction : null
             };
         }
 
