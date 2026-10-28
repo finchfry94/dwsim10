@@ -34,6 +34,9 @@ don't change.
 | `engine.info`, `engine.ping` | version, method list, object types |
 | `flowsheet.new/open/save/close/summary/list` | documents (`.dwxmz`, `.dwxml`) |
 | `graph.get/add/move/connect/disconnect/delete/autoLayout` | the flowsheet as nodes, ports and edges |
+| `compounds.search`, `propertyPackages.list` | what a simulation can be set up with |
+| `flowsheet.addCompounds/addPropertyPackage` | set a simulation up (with flash settings) |
+| `stream.specify` | a stream's T, P, vapor fraction, flows and composition, and its flash spec |
 | `object.properties/setProperty/rename` | an object's property list, in the flowsheet's units |
 | `stream.get` | a stream's state and composition by phase (SI) |
 | `solve.run`, `solve.check` | solve (cancellable), and diagnose without solving |
@@ -92,6 +95,11 @@ cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings
 ```bash
 dotnet test tests/DWSIM.Bridge.Tests -c Release
 ```
+
+That suite also checks the bridge against the engine. `ReferenceFlowsheetTests` solves the 22
+reference flowsheets through the bridge and through the app's own host, and requires the same
+results. `BridgeValidationTests` runs the thermodynamics validation cases (T01–T34, with the
+references of `tests/DWSIM.Validation.Tests`) in a separate `dwsim-bridge` process over stdio.
 
 With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` drives the UI end
 to end.
