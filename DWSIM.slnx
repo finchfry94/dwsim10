@@ -53,6 +53,7 @@
     <Project Path="engine/DWSIM.FluentAPI/DWSIM.FluentAPI.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/DWSIM.Bridge/DWSIM.Bridge.csproj" />
     <Project Path="tools/DWSIM.MCPServer/DWSIM.MCPServer.csproj" />
     <Project Path="tools/IpoptKktReplay/IpoptKktReplay.csproj" />
   </Folder>
@@ -72,6 +73,7 @@
     <Project Path="external/ReoGrid/ReoGrid/ReoGridAvalonia.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/DWSIM.Bridge.Tests/DWSIM.Bridge.Tests.csproj" />
     <Project Path="tests/DWSIM.Engine.SmokeTests/DWSIM.Engine.SmokeTests.csproj" />
     <Project Path="tests/DWSIM.FluentAPI.Tests/DWSIM.FluentAPI.Tests.csproj" />
     <Project Path="tests/DWSIM.Validation.Tests/DWSIM.Validation.Tests.csproj" />
