@@ -5,3 +5,4 @@ src-tauri/gen/
 test-results/
 *.local
 src-tauri/engine/
+*.tsbuildinfo
