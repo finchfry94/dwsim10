@@ -1,6 +1,7 @@
 import { transport } from "./transport";
 import type {
   CompoundInfo,
+  EditorSchema,
   EngineInfo,
   Finding,
   FlowsheetSummary,
@@ -68,6 +69,14 @@ export const engine = {
     call<FlowsheetSummary>("flowsheet.setUnitSystem", { flowsheetId, name }),
   specifyStream: (flowsheetId: string, id: string, spec: StreamSpecification) =>
     call<GraphNode>("stream.specify", { flowsheetId, id, ...spec }),
+
+  schema: (flowsheetId: string, id: string) => call<EditorSchema>("object.schema", { flowsheetId, id }),
+  setField: (flowsheetId: string, id: string, field: string, value: unknown, unit?: string | null) =>
+    call<EditorSchema>("object.setField", { flowsheetId, id, field, value, unit: unit ?? undefined }),
+  setMode: (flowsheetId: string, id: string, value: string) =>
+    call<EditorSchema>("object.setMode", { flowsheetId, id, value }),
+  convertUnits: (value: number, from: string, to: string) =>
+    call<number>("units.convert", { value, from, to }),
 
   solve: (flowsheetId: string) => call<SolveResult>("solve.run", { flowsheetId }),
   check: (flowsheetId: string) => call<Finding[]>("solve.check", { flowsheetId }),

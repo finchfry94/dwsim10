@@ -39,7 +39,9 @@ don't change.
 | `flowsheet.addPropertyPackage/removePropertyPackage` | its property packages, with flash settings |
 | `unitSystems.list`, `flowsheet.setUnitSystem` | the units it shows |
 | `stream.specify` | a stream's T, P, vapor fraction, total flow and composition (compound flows or fractions), and its flash spec |
-| `object.properties/setProperty/rename` | an object's property list, in the flowsheet's units |
+| `object.schema`, `object.setField/setMode` | a unit operation's editor, generated from the engine (mode, fields, units, missing specs, tables, connections, results) |
+| `units.convert` | value between two units of a kind |
+| `object.properties/setProperty/rename` | an object's raw property list, in the flowsheet's units |
 | `stream.get` | a stream's state and composition by phase (SI) |
 | `solve.run`, `solve.check` | solve (cancellable), and diagnose without solving |
 
@@ -100,8 +102,10 @@ dotnet test tests/DWSIM.Bridge.Tests -c Release
 
 That suite also checks the bridge against the engine. `ReferenceFlowsheetTests` solves the 22
 reference flowsheets through the bridge and through the app's own host, and requires the same
-results. `BridgeValidationTests` runs the thermodynamics validation cases (T01–T34, with the
-references of `tests/DWSIM.Validation.Tests`) in a separate `dwsim-bridge` process over stdio.
+results. `BridgeValidationTests` runs the thermodynamics cases (T01–T34) and the unit-operation
+cases (U01–U08, A04) of `tests/DWSIM.Validation.Tests` in a separate `dwsim-bridge` process over
+stdio, setting unit operations up through their editors. `EditorSchemaTests` checks every
+catalogued editor.
 
 With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` drives the UI end
 to end.
@@ -118,6 +122,18 @@ compressed. The `desktop` workflow builds all three platforms on a tag or on dem
 
 ## Roadmap
 
-See [`docs/tauri-port-plan.md`](../docs/tauri-port-plan.md). A new simulation can now be set up
-(wizard: compounds, property package, units), built, specified and solved. Next is an editor
-schema for each unit operation, replacing the raw property list.
+See [`docs/tauri-port-plan.md`](../docs/tauri-port-plan.md). A new simulation can be set up
+(wizard: compounds, property package, units), built, specified and solved, and every unit
+operation has an editor generated from the engine. Next: rigorous column editors (M2b), then
+editing comfort (M3).
+
+### How unit-operation editors are made
+
+There is no hand-written editor per type. `tools/DWSIM.Bridge/Methods/EditorMethods.cs` builds a
+schema from what the engine knows: the property list and its units, which properties each
+calculation mode lets the user write (read on a copy of the object, per mode), the enum settings
+found by reflection, and the degrees-of-freedom analysis. `Editors/EditorCatalog.cs` adds only
+labels, mode order and hidden values, taken from the Avalonia editors. `Editors/SpecialFields.cs`
+covers what the property list lacks: splitter ratios, component separator splits, the pipe
+profile, shortcut column keys and the reactor's reaction set. `app/src/panels/SchemaEditor.tsx`
+renders any schema.

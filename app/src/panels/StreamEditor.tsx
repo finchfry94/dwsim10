@@ -64,8 +64,11 @@ export function StreamEditor({
     try {
       await engine.specifyStream(flowsheetId, stream.id, toSpecification(form));
       setDirty(false);
-      log("info", `${stream.tag}: specification applied. Solve to update the results.`);
-      await useApp.getState().refresh();
+      log(
+        "info",
+        `${stream.tag}: specification applied.${useApp.getState().autoSolve ? "" : " Solve to update the results."}`,
+      );
+      await useApp.getState().afterEdit();
     } catch (e) {
       log("error", `${stream.tag}: ${EngineError.from(e).message}`);
     } finally {

@@ -276,6 +276,296 @@ namespace DWSIM.Bridge.Tests
                 .Assert();
         }
 
+        // ------------------------------------------------------------------ unit operations
+        // tests/DWSIM.Validation.Tests/UnitOpsBasic U01-U08 and UnitOpsAdvanced A04, built and
+        // specified through the editors (object.setMode, object.setField) as the app does.
+
+        [Test]
+        public void U01_Heater_WaterDuty()
+        {
+            using var sim = new Sim(_bridge, "Steam Tables (IAPWS-IF97)", "Water");
+            var feed = sim.Feed("in", 298.15, 101325.0, massFlow: 1.0);
+            var product = sim.Add("MaterialStream", "out");
+            var heater = sim.Add("Heater", "HX-1");
+            sim.Chain(feed, heater, product);
+            sim.Energy(heater, "in-1");
+            sim.Mode(heater, "OutletTemperature");
+            sim.Set(heater, "Outlet Temperature", 353.15, "K");
+            sim.Set(heater, "Pressure Drop", 0.0, "Pa");
+            sim.Set(heater, "Efficiency", 100.0);
+            sim.Solve();
+            new Checks("Heater - H2O 1 kg/s, 25 → 80 °C")
+                .Row("T_out", 353.15, sim.Stream(product).Value<double>("temperature"), 0.001)
+                .InRange("Heat duty (NIST 230±5 kW)", 225.0, 235.0, sim.Result(heater, "Heat Added", "kW"))
+                .Assert();
+        }
+
+        [Test]
+        public void U02_Cooler_WaterDuty()
+        {
+            using var sim = new Sim(_bridge, "Steam Tables (IAPWS-IF97)", "Water");
+            var feed = sim.Feed("in", 353.15, 101325.0, massFlow: 1.0);
+            var product = sim.Add("MaterialStream", "out");
+            var cooler = sim.Add("Cooler", "CL-1");
+            sim.Chain(feed, cooler, product);
+            sim.Energy(cooler, "energy", outgoing: true);
+            sim.Mode(cooler, "OutletTemperature");
+            sim.Set(cooler, "Outlet Temperature", 298.15, "K");
+            sim.Set(cooler, "Pressure Drop", 0.0, "Pa");
+            sim.Set(cooler, "Efficiency", 100.0);
+            sim.Solve();
+            new Checks("Cooler - H2O 1 kg/s, 80 → 25 °C")
+                .Row("T_out", 298.15, sim.Stream(product).Value<double>("temperature"), 0.001)
+                .InRange("Heat removed (NIST 230±5 kW)", 225.0, 235.0, Math.Abs(sim.Result(cooler, "Heat Removed", "kW")))
+                .Assert();
+        }
+
+        [Test]
+        public void U03_Pump_WaterPower()
+        {
+            using var sim = new Sim(_bridge, "Steam Tables (IAPWS-IF97)", "Water");
+            var feed = sim.Feed("in", 298.15, 101325.0, massFlow: 1.0);
+            var product = sim.Add("MaterialStream", "out");
+            var pump = sim.Add("Pump", "P-1");
+            sim.Chain(feed, pump, product);
+            sim.Energy(pump, "in-1");
+            sim.Mode(pump, "Delta_P");
+            sim.Set(pump, "Pressure Increase", 10.0, "bar");
+            sim.Set(pump, "Efficiency", 75.0);
+            sim.Solve();
+            double expected = 1.0 / 997.0 * 10e5 / 0.75 / 1000.0;
+            new Checks("Pump - H2O 1 kg/s, ΔP=10 bar, η=75 %")
+                .Row("ΔP", 10e5, sim.Result(pump, "Pressure Increase", "Pa"), 0.001)
+                .Row("Power (V̇·ΔP/η)", expected, sim.Result(pump, "Power Required", "kW"), 0.05)
+                .Assert();
+        }
+
+        [Test]
+        public void U04_HeatExchanger_DutyBalance()
+        {
+            using var sim = new Sim(_bridge, "Steam Tables (IAPWS-IF97)", "Water");
+            var hotIn = sim.Feed("hotIn", 373.15, 101325.0, massFlow: 1.0);
+            var coldIn = sim.Feed("coldIn", 298.15, 101325.0, massFlow: 1.0);
+            var hotOut = sim.Add("MaterialStream", "hotOut");
+            var coldOut = sim.Add("MaterialStream", "coldOut");
+            var hx = sim.Add("HeatExchanger", "HX-1");
+            sim.Connect(hotIn, "out-0", hx, "in-0");
+            sim.Connect(coldIn, "out-0", hx, "in-1");
+            sim.Connect(hx, "out-0", hotOut, "in-0");
+            sim.Connect(hx, "out-1", coldOut, "in-0");
+            sim.Mode(hx, "CalcBothTemp_UA");
+            // UA = 5000 W/K, as U × A
+            sim.Set(hx, "Heat Exchange Area (A)", 1.0, "m2");
+            sim.Set(hx, "Global Heat Transfer Coefficient (U)", 5000.0, "W/[m2.K]");
+            sim.Solve();
+            double q = sim.Result(hx, "Heat Load", "kW");
+            double qHot = sim.Stream(hotIn).Value<double>("massFlow") * (sim.Enthalpy(hotIn) - sim.Enthalpy(hotOut));
+            double qCold = sim.Stream(coldIn).Value<double>("massFlow") * (sim.Enthalpy(coldOut) - sim.Enthalpy(coldIn));
+            new Checks("Counter-current HX - H2O 1 kg/s @ 100→? vs 25→?")
+                .Row("q_hot vs Q", q, qHot, 0.01)
+                .Row("q_cold vs Q", q, qCold, 0.01)
+                .Row("Balance (q_hot - q_cold)/Q", 0.0, (qHot - qCold) / Math.Max(Math.Abs(q), 1e-9), 0.01)
+                .InRange("Q > 0 (transfer occurred)", 1.0, 1e6, q)
+                .Assert();
+        }
+
+        [Test]
+        public void U05_Compressor_Isentropic()
+        {
+            using var sim = new Sim(_bridge, "Peng-Robinson (PR)", "Nitrogen");
+            var feed = sim.Feed("in", 300.0, 1e5, molarFlow: 1.0);
+            var product = sim.Add("MaterialStream", "out");
+            var compressor = sim.Add("Compressor", "C-1");
+            sim.Chain(feed, compressor, product);
+            var work = sim.Energy(compressor, "in-1");
+            sim.Set(compressor, "choice:ProcessPath", "Adiabatic");
+            sim.Mode(compressor, "OutletPressure");
+            sim.Set(compressor, "Pressure", 5e5, "Pa");
+            sim.Set(compressor, "Adiabatic Efficiency", 100.0);
+            sim.Solve();
+            var outlet = sim.Stream(product);
+            new Checks("Isentropic compressor - N2 1→5 bar, T_in=300 K")
+                .Row("T_out (γ=1.4 ideal ≈ 475 K)", 300.0 * Math.Pow(5.0, 0.4 / 1.4), outlet.Value<double>("temperature"), 0.03)
+                .InRange("P_out", 4.99e5, 5.01e5, outlet.Value<double>("pressure"))
+                .InRange("Work > 0", 0.1, 1e6, sim.Stream(work).Value<double>("power_kW"))
+                .Assert();
+        }
+
+        [Test]
+        public void U06_Expander_Isentropic()
+        {
+            using var sim = new Sim(_bridge, "Peng-Robinson (PR)", "Nitrogen");
+            var feed = sim.Feed("in", 500.0, 10e5, molarFlow: 1.0);
+            var product = sim.Add("MaterialStream", "out");
+            var expander = sim.Add("Expander", "E-1");
+            sim.Chain(feed, expander, product);
+            var work = sim.Energy(expander, "energy", outgoing: true);
+            sim.Set(expander, "choice:ProcessPath", "Adiabatic");
+            sim.Mode(expander, "OutletPressure");
+            sim.Set(expander, "Pressure", 1e5, "Pa");
+            sim.Set(expander, "Adiabatic Efficiency", 100.0);
+            sim.Solve();
+            new Checks("Isentropic expander - N2 10→1 bar, T_in=500 K")
+                .Row("T_out (γ=1.4 ideal ≈ 259 K)", 500.0 * Math.Pow(0.1, 0.4 / 1.4), sim.Stream(product).Value<double>("temperature"), 0.03)
+                .InRange("Generated work > 0", 0.1, 1e6, sim.Stream(work).Value<double>("power_kW"))
+                .Assert();
+        }
+
+        [Test]
+        public void U07_Valve_JouleThomson()
+        {
+            using var sim = new Sim(_bridge, "Peng-Robinson (PR)", "Carbon dioxide");
+            var feed = sim.Feed("in", 300.0, 100e5, molarFlow: 1.0);
+            var product = sim.Add("MaterialStream", "out");
+            var valve = sim.Add("Valve", "V-1");
+            sim.Chain(feed, valve, product);
+            sim.Mode(valve, "OutletPressure");
+            sim.Set(valve, "Outlet Pressure", 10e5, "Pa");
+            sim.Solve();
+            var outlet = sim.Stream(product);
+            new Checks("Isenthalpic valve - CO2 100→10 bar, T_in=300 K (JT effect)")
+                .Row("h_in ≈ h_out", sim.Enthalpy(feed), sim.Enthalpy(product), 0.001)
+                .InRange("T_out < T_in (μ_JT > 0)", 200.0, 299.99, outlet.Value<double>("temperature"))
+                .InRange("P_out", 9.99e5, 10.01e5, outlet.Value<double>("pressure"))
+                .Assert();
+        }
+
+        [Test]
+        public void U08_Splitter_Ratios()
+        {
+            using var sim = new Sim(_bridge, "Steam Tables (IAPWS-IF97)", "Water");
+            var feed = sim.Feed("in", 350.0, 101325.0, massFlow: 100.0);
+            var out1 = sim.Add("MaterialStream", "o1");
+            var out2 = sim.Add("MaterialStream", "o2");
+            var splitter = sim.Add("Splitter", "SP-1");
+            sim.Connect(feed, "out-0", splitter, "in-0");
+            sim.Connect(splitter, "out-0", out1, "in-0");
+            sim.Connect(splitter, "out-1", out2, "in-0");
+            sim.Mode(splitter, "SplitRatios");
+            sim.Set(splitter, "split:0", 0.70);
+            sim.Set(splitter, "split:1", 0.30);
+            sim.Set(splitter, "split:2", 0.0);
+            sim.Solve();
+            new Checks("Splitter - H2O 100 kg/s, ratio 70/30")
+                .Row("m_out1", 70.0, sim.Stream(out1).Value<double>("massFlow"), 0.001)
+                .Row("m_out2", 30.0, sim.Stream(out2).Value<double>("massFlow"), 0.001)
+                .Row("T_out1 = T_in", 350.0, sim.Stream(out1).Value<double>("temperature"), 0.001)
+                .Row("T_out2 = T_in", 350.0, sim.Stream(out2).Value<double>("temperature"), 0.001)
+                .Assert();
+        }
+
+        [Test]
+        public void A04_Mixer_EnergyBalance()
+        {
+            using var sim = new Sim(_bridge, "Steam Tables (IAPWS-IF97)", "Water");
+            var inlet1 = sim.Feed("inlet1", 300.0, 101325.0, massFlow: 100.0);
+            var inlet2 = sim.Feed("inlet2", 348.0, 101325.0, massFlow: 50.0);
+            var outlet = sim.Add("MaterialStream", "outlet");
+            var mixer = sim.Add("Mixer", "MIX-1");
+            sim.Connect(inlet1, "out-0", mixer, "in-0");
+            sim.Connect(inlet2, "out-0", mixer, "in-1");
+            sim.Connect(mixer, "out-0", outlet, "in-0");
+            sim.Solve();
+            double m1 = sim.Stream(inlet1).Value<double>("massFlow"), m2 = sim.Stream(inlet2).Value<double>("massFlow");
+            double m3 = sim.Stream(outlet).Value<double>("massFlow");
+            new Checks("Adiabatic mixer - H2O 100 kg/s@300K + 50 kg/s@348K")
+                .Row("Mass balance m1+m2=m3", m1 + m2, m3, 0.0001)
+                .Row("Energy balance ΣmH_in=ΣmH_out", m1 * sim.Enthalpy(inlet1) + m2 * sim.Enthalpy(inlet2), m3 * sim.Enthalpy(outlet), 0.001)
+                .InRange("T_out within [300, 348] K", 300.0, 348.0, sim.Stream(outlet).Value<double>("temperature"))
+                .Assert();
+        }
+
+        /// <summary>
+        /// A flowsheet in the bridge, in SI units, built as the editors build one: objects added,
+        /// connected port to port, modes and fields set by the labels the editor shows.
+        /// </summary>
+        private sealed class Sim : IDisposable
+        {
+            private readonly BridgeProcess _b;
+            private readonly string _id;
+            private string _compound;
+
+            public Sim(BridgeProcess bridge, string package, string compound)
+            {
+                _b = bridge;
+                _compound = compound;
+                _id = _b.Call("flowsheet.new", new { name = "validation" }).Value<string>("id");
+                _b.Call("flowsheet.addCompounds", new { flowsheetId = _id, names = new[] { compound } });
+                _b.Call("flowsheet.addPropertyPackage", new { flowsheetId = _id, name = package });
+                _b.Call("flowsheet.setUnitSystem", new { flowsheetId = _id, name = "SI" });
+            }
+
+            public string Add(string type, string tag)
+                => _b.Call("graph.add", new { flowsheetId = _id, type, x = 0, y = 0, tag }).Value<string>("id");
+
+            public string Feed(string tag, double temperature, double pressure, double? massFlow = null, double? molarFlow = null)
+            {
+                var id = Add("MaterialStream", tag);
+                _b.Call("stream.specify", new
+                {
+                    flowsheetId = _id, id, temperature, pressure, massFlow, molarFlow,
+                    moleFractions = new Dictionary<string, double> { [_compound] = 1.0 }
+                });
+                return id;
+            }
+
+            public void Connect(string source, string sourcePort, string target, string targetPort)
+                => _b.Call("graph.connect", new { flowsheetId = _id, sourceId = source, sourcePort, targetId = target, targetPort });
+
+            public void Chain(string feed, string unit, string product)
+            {
+                Connect(feed, "out-0", unit, "in-0");
+                Connect(unit, "out-0", product, "in-0");
+            }
+
+            /// <summary>An energy stream on a unit's energy port, into it or out of it.</summary>
+            public string Energy(string unit, string port, bool outgoing = false)
+            {
+                var e = Add("EnergyStream", "E-" + unit.Substring(0, Math.Min(6, unit.Length)));
+                if (outgoing) Connect(unit, port, e, "in-0");
+                else Connect(e, "out-0", unit, port);
+                return e;
+            }
+
+            public void Mode(string unit, string value) => _b.Call("object.setMode", new { flowsheetId = _id, id = unit, value });
+
+            private JToken FieldOf(JToken schema, string labelOrId)
+                => schema["sections"].SelectMany(s => s["fields"]).FirstOrDefault(f =>
+                       f.Value<string>("id") == labelOrId || f.Value<string>("label") == labelOrId)
+                   ?? throw new AssertionException($"no field '{labelOrId}' in {schema.Value<string>("type")}: " +
+                       string.Join(", ", schema["sections"].SelectMany(s => s["fields"]).Select(f => f.Value<string>("label"))));
+
+            /// <summary>Sets a field found by its label (or id), as a user would in the editor.</summary>
+            public void Set(string unit, string labelOrId, object value, string units = null)
+            {
+                var schema = _b.Call("object.schema", new { flowsheetId = _id, id = unit });
+                var field = FieldOf(schema, labelOrId);
+                _b.Call("object.setField", new { flowsheetId = _id, id = unit, field = field.Value<string>("id"), value, unit = units });
+            }
+
+            /// <summary>A field's value after solving, converted to <paramref name="unit"/>.</summary>
+            public double Result(string obj, string label, string unit)
+            {
+                var field = FieldOf(_b.Call("object.schema", new { flowsheetId = _id, id = obj }), label);
+                var value = field.Value<double>("value");
+                var from = field.Value<string>("unit");
+                return from == null || from == unit ? value : _b.Call("units.convert", new { value, from, to = unit }).Value<double>();
+            }
+
+            public JToken Stream(string id) => _b.Call("stream.get", new { flowsheetId = _id, id });
+
+            /// <summary>The stream's mass enthalpy, kJ/kg.</summary>
+            public double Enthalpy(string id) => Stream(id)["phases"].First(p => p.Value<int>("index") == 0).Value<double>("enthalpy");
+
+            public void Solve()
+            {
+                var result = _b.Call("solve.run", new { flowsheetId = _id });
+                Assert.That(result.Value<bool>("ok"), Is.True, "solve failed: " + string.Join(" | ", result["errors"]));
+            }
+
+            public void Dispose() => _b.Call("flowsheet.close", new { flowsheetId = _id });
+        }
+
         // ------------------------------------------------------------------ plumbing
 
         /// <summary>

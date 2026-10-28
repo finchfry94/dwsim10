@@ -7,6 +7,7 @@ import { EngineError } from "../engine/transport";
 import type { GraphNode, ObjectProperties, PropertyEntry, StreamDetails, UnitSystem } from "../engine/types";
 import { formatNumber, formatQuantity } from "../lib/units";
 import { useApp } from "../state/store";
+import { SchemaEditor } from "./SchemaEditor";
 import { StreamEditor } from "./StreamEditor";
 
 /** Reads engine data for the selection, again whenever the store's revision moves on. */
@@ -140,7 +141,17 @@ function ObjectInspector({
           <Metric label="Power" value={formatQuantity("power", stream.data.power_kW, units?.heatflow)} />
         </div>
       )}
-      <PropertyList flowsheetId={flowsheetId} id={node.id} revision={revision} />
+      {isStream ? (
+        <PropertyList flowsheetId={flowsheetId} id={node.id} revision={revision} />
+      ) : (
+        <>
+          <SchemaEditor flowsheetId={flowsheetId} id={node.id} />
+          <details className="all-properties">
+            <summary className="section-title">All properties</summary>
+            <PropertyList flowsheetId={flowsheetId} id={node.id} revision={revision} />
+          </details>
+        </>
+      )}
     </div>
   );
 }
@@ -341,7 +352,7 @@ function PropertyRow({
       await engine.setProperty(flowsheetId, objectId, p.id, value);
       onChanged();
       // Other objects' state may depend on this one; the canvas re-reads statuses.
-      void useApp.getState().refresh();
+      void useApp.getState().afterEdit();
     } catch (e) {
       log("error", `${p.label}: ${EngineError.from(e).message}`);
       setDraft(shown);

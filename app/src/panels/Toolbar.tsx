@@ -18,7 +18,9 @@ export function Toolbar({
   const colorMode = useApp((s) => s.colorMode);
   const showTags = useApp((s) => s.showStreamTags);
   const engineStatus = useApp((s) => s.engineStatus);
-  const { newFlowsheet, solve, autoLayout, setColorMode, toggleStreamTags, openSetup } = useApp.getState();
+  const autoSolve = useApp((s) => s.autoSolve);
+  const { newFlowsheet, solve, autoLayout, setColorMode, toggleStreamTags, openSetup, setAutoSolve } =
+    useApp.getState();
   const has = flowsheet !== null;
 
   return (
@@ -55,6 +57,15 @@ export function Toolbar({
         >
           <Play size={16} /> {solving ? "Solving…" : "Solve"}
         </button>
+        <label className="toggle toolbar-toggle" title="Solve automatically after every edit">
+          <input
+            type="checkbox"
+            checked={autoSolve}
+            onChange={(e) => setAutoSolve(e.target.checked)}
+            aria-label="Auto-solve"
+          />
+          Auto
+        </label>
         <button
           className="btn"
           onClick={() => void autoLayout()}

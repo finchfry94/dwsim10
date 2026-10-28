@@ -7,7 +7,8 @@
 //
 // Opens the Cavett problem, solves it, colours streams by temperature and inspects a stream;
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
-// drop, specifies the feed, gives the heater a duty, solves, and checks the product temperature.
+// drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
+// auto-solve brings the product to 80 °C.
 
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -102,22 +103,26 @@ async function main() {
   await feed.getByTestId("apply-spec").click();
   await page.getByText("specification applied").waitFor();
 
+  // The heater through its editor: outlet temperature mode, 80 °C. Auto-solve does the rest.
   await page.locator(`[data-testid="node-${heater}"]`).click();
-  const duty = page.getByTestId("properties").getByLabel("Heat Added", { exact: true });
-  await duty.fill("50");
-  await duty.press("Enter");
-  await page.waitForTimeout(500);
-  await page.getByTestId("solve").click();
-  await page.getByText("The flowsheet was calculated successfully").nth(1).waitFor({ timeout: 120_000 });
+  const editor = page.getByTestId("schema-editor");
+  await editor.getByLabel("Calculation mode").selectOption("OutletTemperature");
+  const outletT = editor.getByLabel("Outlet Temperature", { exact: true });
+  await outletT.waitFor();
+  await editor.getByLabel("Outlet Temperature unit").selectOption("C");
+  await outletT.fill("80");
+  await outletT.press("Enter");
+  await editor.getByTestId("dof").filter({ hasText: "Fully specified" }).waitFor();
 
-  // 50 kW into 1 kg/s of 60/40 mol% water/ethanol: about 16 K warmer.
   await page.locator('[data-testid="node-2"]').click();
   const temperature = page.locator(".metric", { hasText: "Temperature" }).locator(".metric-value");
-  await temperature.filter({ hasText: "°C" }).waitFor();
-  const t = parseFloat(await temperature.innerText());
-  assert.ok(t > 38 && t < 44, `product at ${t} °C`);
+  await temperature.filter({ hasText: "80 °C" }).waitFor({ timeout: 60_000 });
+  assert.equal(await temperature.innerText(), "80 °C");
+  await page.locator(`[data-testid="node-${heater}"]`).click();
+  await editor.getByTestId("dof").waitFor();
   await shot("new-flowsheet");
 
+  if (errors.length) console.error("console errors:", JSON.stringify(errors, null, 1));
   assert.deepEqual(errors, []);
   await browser.close();
   console.log("e2e smoke: ok");

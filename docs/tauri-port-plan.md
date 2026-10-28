@@ -13,10 +13,11 @@ The existing code and the validation suite serve as the specification for every 
 
 Phase 0 is done, and a first slice of phases 1 and 2. The engine bridge, the Rust client, the
 Tauri shell and the React app open, edit, solve and save flowsheets, and set a new simulation up
-from scratch (milestone M1 below). See `app/README.md`.
+from scratch (milestone M1 below), and every unit operation has an editor generated from the
+engine (M2). See `app/README.md`.
 
-Front-end milestones still to do: M2 unit-operation editors from a schema (replacing the raw
-property list), M3 editing comfort (undo, copy/paste, cancel solve, diagnostics panel), M4 results
+Front-end milestones still to do: M2b rigorous column editors (stages, specifications,
+estimates, profiles) and variable pickers for Adjust and Spec, M3 editing comfort (undo, copy/paste, cancel solve, diagnostics panel), M4 results
 and analysis (stream tables, reports, charts, sizing tools), M5 advanced tools (reactions,
 sensitivity, optimizer, dynamics, scripting, spreadsheet, compound tools), M6 polish and shipping.
 Simulation settings (solver mode, tolerances) from M1 are also still to do.

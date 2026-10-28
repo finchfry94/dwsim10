@@ -34,7 +34,7 @@ namespace DWSIM.Bridge.Methods
                 {
                     ["id"] = obj.Name,
                     ["tag"] = obj.GraphicObject?.Tag,
-                    ["type"] = obj.GraphicObject?.ObjectType.ToString(),
+                    ["type"] = ObjectTypes.Name(obj),
                     ["properties"] = list
                 };
             }

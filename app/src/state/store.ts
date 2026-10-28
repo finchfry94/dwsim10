@@ -27,6 +27,8 @@ interface AppState {
   revision: number;
   /** The setup dialog: the new-simulation wizard, the setup editor, or closed. */
   setup: "new" | "edit" | null;
+  /** Solve after every edit, as the Avalonia app does; off for large flowsheets. */
+  autoSolve: boolean;
 
   newFlowsheet(): Promise<void>;
   open(path: string): Promise<void>;
@@ -40,6 +42,9 @@ interface AppState {
   rename(id: string, tag: string): Promise<void>;
   select(id: string | null): void;
   openSetup(mode: "new" | "edit" | null): void;
+  setAutoSolve(on: boolean): void;
+  /** Call after any edit: re-reads the flowsheet, then solves if auto-solve is on (debounced). */
+  afterEdit(): Promise<void>;
   setColorMode(mode: ColorMode): void;
   toggleStreamTags(): void;
   log(level: LogEntry["level"], text: string): void;
@@ -49,6 +54,20 @@ interface AppState {
 
 let logId = 0;
 const MAX_LOG = 500;
+
+/** Edits closer together than this share one solve. */
+const AUTO_SOLVE_DELAY_MS = 400;
+let autoSolveTimer: ReturnType<typeof setTimeout> | undefined;
+/** An edit arrived while a solve ran; solve once more when it finishes. */
+let solveAgain = false;
+
+function readAutoSolve(): boolean {
+  try {
+    return localStorage.getItem("dwsim.autoSolve") !== "false";
+  } catch {
+    return true;
+  }
+}
 
 export const useApp = create<AppState>((set, get) => {
   /** Runs an engine action, logging a failure instead of throwing into the UI. */
@@ -90,6 +109,7 @@ export const useApp = create<AppState>((set, get) => {
     logs: [],
     revision: 0,
     setup: null,
+    autoSolve: readAutoSolve(),
 
     async newFlowsheet() {
       const summary = await attempt("New flowsheet", () => engine.newFlowsheet());
@@ -122,6 +142,10 @@ export const useApp = create<AppState>((set, get) => {
         await get().refresh();
       } finally {
         set({ solving: false });
+        if (solveAgain) {
+          solveAgain = false;
+          void get().solve();
+        }
       }
     },
 
@@ -173,6 +197,25 @@ export const useApp = create<AppState>((set, get) => {
 
     select: (selection) => set({ selection }),
     openSetup: (setup) => set({ setup }),
+
+    setAutoSolve(autoSolve) {
+      set({ autoSolve });
+      try {
+        localStorage.setItem("dwsim.autoSolve", String(autoSolve));
+      } catch {
+        /* storage unavailable */
+      }
+    },
+
+    async afterEdit() {
+      await get().refresh();
+      if (!get().autoSolve) return;
+      clearTimeout(autoSolveTimer);
+      autoSolveTimer = setTimeout(() => {
+        if (get().solving) solveAgain = true;
+        else void get().solve();
+      }, AUTO_SOLVE_DELAY_MS);
+    },
     setColorMode: (colorMode) => set({ colorMode }),
     toggleStreamTags: () => set((s) => ({ showStreamTags: !s.showStreamTags })),
 

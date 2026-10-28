@@ -148,7 +148,7 @@ namespace DWSIM.Bridge.Methods
             {
                 ["id"] = obj.Name,
                 ["tag"] = go.Tag,
-                ["type"] = go.ObjectType.ToString(),
+                ["type"] = ObjectTypes.Name(go.ObjectType),
                 ["x"] = go.X,
                 ["y"] = go.Y,
                 ["width"] = go.Width,

@@ -171,6 +171,103 @@ export interface StreamSpecification {
   massFractions?: Record<string, number>;
 }
 
+// ---------------------------------------------------------------- editor schemas (object.schema)
+
+export interface ChoiceOption {
+  value: string;
+  label: string;
+}
+
+interface FieldBase {
+  /** A property id (PROP_…), or choice:/dynamic:/table:/split:/compound: ids the bridge reads specially. */
+  id: string;
+  label: string;
+  /** False when the current calculation mode computes it. */
+  editable: boolean;
+  /** A specification the degrees-of-freedom analysis reports missing. */
+  missing?: boolean;
+  hint?: string | null;
+}
+
+export interface NumberField extends FieldBase {
+  kind: "number";
+  value: number | null;
+  /** In the flowsheet's unit system; null for a dimensionless value. */
+  unit: string | null;
+  /** Other units of the same kind the value may be entered in. */
+  units?: string[];
+}
+
+export interface TextField extends FieldBase {
+  kind: "text";
+  value: string | null;
+}
+
+export interface BoolField extends FieldBase {
+  kind: "bool";
+  value: boolean | null;
+}
+
+export interface ChoiceField extends FieldBase {
+  kind: "choice";
+  value: string | null;
+  options: ChoiceOption[];
+}
+
+export interface TableColumn {
+  key: string;
+  label: string;
+  kind: "number" | "text" | "choice";
+  unit?: string;
+  /** A row key that holds the cell's unit, when it varies by row. */
+  unitKey?: string;
+  options?: ChoiceOption[];
+  editable: boolean;
+}
+
+export interface TableField extends FieldBase {
+  kind: "table";
+  columns: TableColumn[];
+  rows: Record<string, string | number | null>[];
+  canAddRows?: boolean;
+  newRow?: Record<string, string | number | null>;
+}
+
+export type SchemaField = NumberField | TextField | BoolField | ChoiceField | TableField;
+
+export interface SchemaSection {
+  id: string;
+  title: string;
+  collapsed?: boolean;
+  fields: SchemaField[];
+}
+
+export interface SchemaConnection {
+  port: string;
+  label: string;
+  direction: "in" | "out";
+  energy: boolean;
+  stream: { id: string; tag: string } | null;
+  candidates: { id: string; tag: string }[];
+}
+
+export interface EditorSchema {
+  id: string;
+  tag: string;
+  type: string;
+  calculated: boolean;
+  error: string | null;
+  mode: { property: string; value: string | null; options: ChoiceOption[] } | null;
+  dof: {
+    supported: boolean;
+    remaining: number;
+    note: string | null;
+    slots: { name: string; required: boolean; set: boolean; note: string | null }[];
+  } | null;
+  sections: SchemaSection[];
+  connections: SchemaConnection[];
+}
+
 export interface SolveResult {
   flowsheetId: string;
   ok: boolean;

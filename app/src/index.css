@@ -1051,3 +1051,123 @@ body {
   border-bottom: 0;
   font-weight: 600;
 }
+
+/* Schema editor */
+.schema-editor {
+  margin-top: 6px;
+}
+.schema-section {
+  margin-top: 10px;
+}
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.section-toggle svg {
+  transition: transform 0.12s;
+}
+.schema-fields {
+  display: flex;
+  flex-direction: column;
+}
+.schema-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--border);
+  min-height: 32px;
+}
+.schema-label {
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.schema-row.is-calculated .schema-label {
+  color: var(--text-muted);
+}
+.schema-row.is-missing .schema-label {
+  color: var(--danger);
+}
+.schema-row.is-missing .input {
+  border-color: var(--danger);
+}
+.schema-value .readonly {
+  display: block;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-right: 4px;
+}
+.unit {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+.unit-fixed {
+  width: 84px;
+  flex: none;
+  align-self: center;
+  padding-left: 4px;
+}
+.badge {
+  font-size: 10px;
+  padding: 0 6px;
+  border-radius: 999px;
+  line-height: 16px;
+}
+.badge-missing {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+  color: var(--danger);
+}
+.badge-energy {
+  background: color-mix(in srgb, var(--stream-energy) 18%, transparent);
+  color: var(--stream-energy);
+}
+.dof {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin: 6px 0;
+  font-size: 12px;
+}
+.dof svg {
+  flex: none;
+  margin-top: 2px;
+}
+.dof-ok {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success);
+}
+.dof-missing {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  color: var(--danger);
+}
+.schema-table {
+  padding: 6px 0 4px;
+}
+.schema-table .cell-input {
+  min-width: 56px;
+}
+.all-properties {
+  margin-top: 16px;
+}
+.all-properties > summary {
+  cursor: pointer;
+  padding: 4px 0;
+}
+.toolbar-toggle {
+  margin-left: 6px;
+  color: var(--text);
+  font-size: 12px;
+}
