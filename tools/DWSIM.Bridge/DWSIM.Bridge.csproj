@@ -32,6 +32,13 @@
     <ProjectReference Include="..\..\engine\DWSIM.Drawing.SkiaSharp\DWSIM.Drawing.SkiaSharp.vbproj" />
   </ItemGroup>
 
+  <!-- The engine's stream and compound classes implement CAPE-OPEN interfaces. -->
+  <ItemGroup>
+    <Reference Include="CapeOpen">
+      <HintPath>..\..\lib\CapeOpen.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
   <ItemGroup>
     <InternalsVisibleTo Include="DWSIM.Bridge.Tests" />
   </ItemGroup>

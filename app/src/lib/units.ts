@@ -60,6 +60,25 @@ export const SI: Record<Quantity, string> = {
   power: "kW",
 };
 
+/** The units the editors offer for a quantity, SI first. */
+export function unitsOf(quantity: Quantity): string[] {
+  return Object.keys(UNITS[quantity]);
+}
+
+/** Whether a unit string is one this module converts (DWSIM's own spelling). */
+export const knownUnit = (quantity: Quantity, unit: string | undefined): unit is string =>
+  unit !== undefined && unit in UNITS[quantity];
+
+/** Converts a value in `unit` to SI; the inverse of fromSI. An unknown unit is taken as SI. */
+export function toSI(quantity: Quantity, value: number, unit: string | undefined): number {
+  const u = unit ? UNITS[quantity][unit] : undefined;
+  if (!u) return value;
+  return (value - (u.offset ?? 0)) / u.factor;
+}
+
+/** Shown name of a unit: DWSIM writes Celsius and Fahrenheit as C and F. */
+export const unitLabel = (unit: string) => (unit === "C" || unit === "F" ? `°${unit}` : unit);
+
 /** Converts an SI value; falls back to SI when the unit is unknown. */
 export function fromSI(
   quantity: Quantity,
@@ -70,7 +89,7 @@ export function fromSI(
   if (!u || !unit) return { value, unit: SI[quantity] };
   return {
     value: value * u.factor + (u.offset ?? 0),
-    unit: unit === "C" || unit === "F" ? `°${unit}` : unit,
+    unit: unitLabel(unit),
   };
 }
 

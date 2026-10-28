@@ -7,6 +7,7 @@ import { EngineError } from "../engine/transport";
 import type { GraphNode, ObjectProperties, PropertyEntry, StreamDetails, UnitSystem } from "../engine/types";
 import { formatNumber, formatQuantity } from "../lib/units";
 import { useApp } from "../state/store";
+import { StreamEditor } from "./StreamEditor";
 
 /** Reads engine data for the selection, again whenever the store's revision moves on. */
 function useEngineData<T>(
@@ -130,6 +131,9 @@ function ObjectInspector({
           <AlertTriangle size={16} /> <span>{node.error}</span>
         </div>
       )}
+      {stream.data?.kind === "material" && isFeed(node) && (
+        <StreamEditor flowsheetId={flowsheetId} stream={stream.data} units={units} />
+      )}
       {stream.data?.kind === "material" && <StreamSummary s={stream.data} units={units} />}
       {stream.data?.kind === "energy" && (
         <div className="metrics">
@@ -140,6 +144,10 @@ function ObjectInspector({
     </div>
   );
 }
+
+/** A material stream nothing flows into: its conditions are the user's to set. */
+const isFeed = (n: GraphNode) =>
+  n.type === "MaterialStream" && !n.ports.some((p) => p.kind === "in" && p.attached);
 
 function statusText(n: GraphNode) {
   if (n.error) return "Error";

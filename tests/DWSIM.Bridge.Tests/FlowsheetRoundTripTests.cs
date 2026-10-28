@@ -119,6 +119,65 @@ namespace DWSIM.Bridge.Tests
         }
 
         [Test]
+        public void ANewSimulationIsSetUpSolvedAndTrimmed()
+        {
+            var id = Call("flowsheet.new", new { name = "setup" }).Value<string>("id");
+
+            var hits = (JArray)Call("compounds.search", new { flowsheetId = id, query = "ethanol", limit = 5 });
+            Assert.That(hits.First().Value<string>("name"), Is.EqualTo("Ethanol"), "an exact name match comes first");
+            Assert.That((JArray)Call("propertyPackages.list", new { flowsheetId = id }), Has.Some.Matches<JToken>(t => t.Value<string>() == "NRTL"));
+
+            Call("flowsheet.addCompounds", new { flowsheetId = id, names = new[] { "Water", "Ethanol" } });
+            var summary = Call("flowsheet.addPropertyPackage", new { flowsheetId = id, name = "NRTL" });
+            Assert.That(summary["compounds"].Select(c => c.Value<string>()), Is.EqualTo(new[] { "Water", "Ethanol" }));
+            Assert.That(summary["propertyPackages"].Count(), Is.EqualTo(1));
+
+            var systems = (JArray)Call("unitSystems.list", new { flowsheetId = id });
+            Assert.That(systems.Select(u => u.Value<string>("name")), Does.Contain("SI"));
+            Assert.That(Call("flowsheet.setUnitSystem", new { flowsheetId = id, name = "SI" })["unitSystem"].Value<string>("temperature"), Is.EqualTo("K"));
+
+            var feed = Call("graph.add", new { flowsheetId = id, type = "MaterialStream", x = 0, y = 0, tag = "feed" }).Value<string>("id");
+            Call("stream.specify", new
+            {
+                flowsheetId = id, id = feed, pressure = 101325.0, vaporFraction = 0.0, molarFlow = 1.0,
+                compoundMolarFlows = new Dictionary<string, double> { ["Water"] = 0.6, ["Ethanol"] = 0.4 }
+            });
+            Assert.That(Call("solve.run", new { flowsheetId = id }).Value<bool>("ok"), Is.True);
+            var stream = Call("stream.get", new { flowsheetId = id, id = feed });
+            Assert.That(stream.Value<string>("spec"), Is.EqualTo("Pressure_and_VaporFraction"));
+            Assert.That(stream.Value<double>("temperature"), Is.InRange(351.0, 373.2), "bubble point between the pure boiling points");
+
+            // Fractions with a total flow: the composition first, then the total scales it.
+            Call("stream.specify", new
+            {
+                flowsheetId = id, id = feed, temperature = 300.0, pressure = 101325.0, massFlow = 2.0,
+                massFractions = new Dictionary<string, double> { ["Water"] = 1.0, ["Ethanol"] = 1.0 }
+            });
+            Assert.That(Call("solve.run", new { flowsheetId = id }).Value<bool>("ok"), Is.True);
+            stream = Call("stream.get", new { flowsheetId = id, id = feed });
+            Assert.That(stream.Value<string>("spec"), Is.EqualTo("Temperature_and_Pressure"));
+            Assert.That(stream.Value<double>("massFlow"), Is.EqualTo(2.0).Within(1e-9));
+            var mixture = stream["phases"].First(p => p.Value<int>("index") == 0)["compounds"];
+            Assert.That(mixture.Select(c => c.Value<double>("massFraction")), Is.All.EqualTo(0.5).Within(1e-9), "normalized to 50/50");
+
+            var nrtl = summary["propertyPackages"][0].Value<string>("id");
+            Assert.Throws<RpcException>(() => Call("flowsheet.removePropertyPackage", new { flowsheetId = id, id = nrtl }), "the only package, with a stream");
+            summary = Call("flowsheet.addPropertyPackage", new { flowsheetId = id, name = "Peng-Robinson (PR)" });
+            summary = Call("flowsheet.removePropertyPackage", new { flowsheetId = id, id = nrtl });
+            Assert.That(summary["propertyPackages"].Select(p => p.Value<string>("model")), Is.EqualTo(new[] { "Peng-Robinson (PR)" }));
+            Assert.That(Call("solve.run", new { flowsheetId = id }).Value<bool>("ok"), Is.True, "the feed falls back to the package left");
+
+            summary = Call("flowsheet.removeCompound", new { flowsheetId = id, name = "Ethanol" });
+            Assert.That(summary["compounds"].Select(c => c.Value<string>()), Is.EqualTo(new[] { "Water" }));
+            stream = Call("stream.get", new { flowsheetId = id, id = feed });
+            var overall = stream["phases"].First(p => p.Value<int>("index") == 0)["compounds"];
+            Assert.That(overall.Select(c => c.Value<string>("name")), Is.EqualTo(new[] { "Water" }));
+            Assert.That(stream.Value<bool>("calculated"), Is.False);
+
+            Call("flowsheet.close", new { flowsheetId = id });
+        }
+
+        [Test]
         public void UnknownFlowsheetIsAnEngineError()
         {
             var ex = Assert.Throws<RpcException>(() => Call("graph.get", new { flowsheetId = "missing" }));

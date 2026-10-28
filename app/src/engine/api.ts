@@ -1,5 +1,6 @@
 import { transport } from "./transport";
 import type {
+  CompoundInfo,
   EngineInfo,
   Finding,
   FlowsheetSummary,
@@ -9,6 +10,8 @@ import type {
   PropertyEntry,
   SolveResult,
   StreamDetails,
+  StreamSpecification,
+  UnitSystem,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -48,6 +51,23 @@ export const engine = {
   rename: (flowsheetId: string, id: string, tag: string) =>
     call<GraphNode>("object.rename", { flowsheetId, id, tag }),
   stream: (flowsheetId: string, id: string) => call<StreamDetails>("stream.get", { flowsheetId, id }),
+
+  searchCompounds: (flowsheetId: string, query: string, limit = 50) =>
+    call<CompoundInfo[]>("compounds.search", { flowsheetId, query, limit }),
+  propertyPackages: (flowsheetId: string) => call<string[]>("propertyPackages.list", { flowsheetId }),
+  unitSystems: (flowsheetId: string) => call<UnitSystem[]>("unitSystems.list", { flowsheetId }),
+  addCompounds: (flowsheetId: string, names: string[]) =>
+    call<FlowsheetSummary>("flowsheet.addCompounds", { flowsheetId, names }),
+  removeCompound: (flowsheetId: string, name: string) =>
+    call<FlowsheetSummary>("flowsheet.removeCompound", { flowsheetId, name }),
+  addPropertyPackage: (flowsheetId: string, name: string, flashSettings?: Record<string, unknown>) =>
+    call<FlowsheetSummary>("flowsheet.addPropertyPackage", { flowsheetId, name, flashSettings }),
+  removePropertyPackage: (flowsheetId: string, id: string) =>
+    call<FlowsheetSummary>("flowsheet.removePropertyPackage", { flowsheetId, id }),
+  setUnitSystem: (flowsheetId: string, name: string) =>
+    call<FlowsheetSummary>("flowsheet.setUnitSystem", { flowsheetId, name }),
+  specifyStream: (flowsheetId: string, id: string, spec: StreamSpecification) =>
+    call<GraphNode>("stream.specify", { flowsheetId, id, ...spec }),
 
   solve: (flowsheetId: string) => call<SolveResult>("solve.run", { flowsheetId }),
   check: (flowsheetId: string) => call<Finding[]>("solve.check", { flowsheetId }),

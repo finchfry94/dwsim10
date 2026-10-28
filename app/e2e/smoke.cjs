@@ -6,7 +6,8 @@
 //   NODE_PATH=$(npm root -g) node e2e/smoke.cjs [screenshot-dir]
 //
 // Opens the Cavett problem, solves it, colours streams by temperature and inspects a stream;
-// then builds a stream-into-heater flowsheet by drag and drop and renames the heater.
+// then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
+// drop, specifies the feed, gives the heater a duty, solves, and checks the product temperature.
 
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -31,30 +32,90 @@ async function main() {
   assert.equal(await page.locator(".react-flow__node").count(), 42);
   assert.equal(await page.locator(".react-flow__edge").count(), 44);
   await page.getByTestId("solve").click();
-  await page.getByText("The flowsheet was calculated successfully", { exact: false }).waitFor({ timeout: 180_000 });
+  await page
+    .getByText("The flowsheet was calculated successfully", { exact: false })
+    .waitFor({ timeout: 180_000 });
   await page.selectOption("#color-mode", "temperature");
   await page.getByTestId("legend").waitFor();
   await page.locator('[data-testid="node-4"]').click();
   await page.getByTestId("composition").waitFor({ timeout: 20_000 });
   await shot("cavett-solved");
 
-  // A new flowsheet built by hand.
+  // A new simulation built from scratch: setup wizard, feed -> heater -> product, solved.
   await page.getByRole("button", { name: "New", exact: true }).click();
-  await page.getByText("New Simulation").first().waitFor();
-  await page.dragAndDrop('[data-testid="palette-MaterialStream"]', '[data-testid="canvas"]', { targetPosition: { x: 300, y: 300 } });
-  await page.dragAndDrop('[data-testid="palette-Heater"]', '[data-testid="canvas"]', { targetPosition: { x: 520, y: 300 } });
-  await page.waitForFunction(() => document.querySelectorAll(".react-flow__node").length === 2);
-  const from = await page.locator('.react-flow__node:has([data-testid="node-1"]) [data-handleid="out-0"]').boundingBox();
-  const to = await page.locator('.react-flow__node:has([data-testid^="node-HT"]) [data-handleid="in-0"]').boundingBox();
-  await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 10 });
-  await page.mouse.up();
-  await page.waitForFunction(() => document.querySelectorAll(".react-flow__edge").length === 1, null, { timeout: 10_000 });
-  await page.locator('[data-testid^="node-HT"]').click();
-  await page.getByLabel("Name").fill("Feed heater");
-  await page.getByLabel("Name").press("Enter");
-  await page.getByTestId("node-Feed heater").waitFor();
+  const setup = page.getByRole("dialog", { name: "Simulation setup" });
+  await setup.waitFor();
+  for (const compound of ["Water", "Ethanol"]) {
+    await setup.getByLabel("Search compounds").fill(compound.toLowerCase());
+    await setup.getByRole("button", { name: `Add ${compound}`, exact: true }).click();
+    await setup.getByTestId("compound-selection").getByText(compound, { exact: true }).waitFor();
+  }
+  await setup.getByRole("button", { name: "Next" }).click();
+  await setup.getByLabel("Filter property packages").fill("NRTL");
+  await setup.getByRole("button", { name: "Add NRTL", exact: true }).click();
+  await setup.getByTestId("package-selection").getByText("NRTL").waitFor();
+  await setup.getByRole("button", { name: "Next" }).click();
+  await setup.getByRole("button", { name: "Finish" }).click();
+  await setup.waitFor({ state: "detached" });
+
+  const drop = (type, x, y) =>
+    page.dragAndDrop(`[data-testid="palette-${type}"]`, '[data-testid="canvas"]', {
+      targetPosition: { x, y },
+    });
+  await drop("MaterialStream", 250, 300);
+  await drop("Heater", 450, 300);
+  await drop("MaterialStream", 650, 300);
+  await drop("EnergyStream", 450, 450);
+  await page.waitForFunction(() => document.querySelectorAll(".react-flow__node").length === 4);
+  const tags = await page.locator(".node-label").allInnerTexts();
+  const heater = tags.find((t) => t.startsWith("HT"));
+  const energy = tags.find((t) => t.startsWith("E"));
+  const port = (tag, id) =>
+    page.locator(`.react-flow__node:has([data-testid="node-${tag}"]) [data-handleid="${id}"]`);
+  let edges = 0;
+  const connect = async (from, to) => {
+    const a = await from.boundingBox();
+    const b = await to.boundingBox();
+    await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 });
+    await page.mouse.up();
+    edges += 1;
+    await page.waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
+      timeout: 10_000,
+    });
+  };
+  await connect(port("1", "out-0"), port(heater, "in-0"));
+  await connect(port(heater, "out-0"), port("2", "in-0"));
+  await connect(port(energy, "out-0"), port(heater, "in-1"));
+
+  await page.locator('[data-testid="node-1"]').click();
+  const feed = page.getByTestId("stream-editor");
+  await feed.getByLabel("Temperature", { exact: true }).fill("25");
+  await feed.getByLabel("Temperature unit").selectOption("C");
+  await feed.getByLabel("Pressure", { exact: true }).fill("1.01325");
+  await feed.getByLabel("Pressure unit").selectOption("bar");
+  await feed.getByLabel("Total flow", { exact: true }).fill("3600");
+  await feed.getByLabel("Total flow unit").selectOption("kg/h");
+  await feed.getByLabel("Water amount").fill("0.6");
+  await feed.getByLabel("Ethanol amount").fill("0.4");
+  await feed.getByTestId("apply-spec").click();
+  await page.getByText("specification applied").waitFor();
+
+  await page.locator(`[data-testid="node-${heater}"]`).click();
+  const duty = page.getByTestId("properties").getByLabel("Heat Added", { exact: true });
+  await duty.fill("50");
+  await duty.press("Enter");
+  await page.waitForTimeout(500);
+  await page.getByTestId("solve").click();
+  await page.getByText("The flowsheet was calculated successfully").nth(1).waitFor({ timeout: 120_000 });
+
+  // 50 kW into 1 kg/s of 60/40 mol% water/ethanol: about 16 K warmer.
+  await page.locator('[data-testid="node-2"]').click();
+  const temperature = page.locator(".metric", { hasText: "Temperature" }).locator(".metric-value");
+  await temperature.filter({ hasText: "°C" }).waitFor();
+  const t = parseFloat(await temperature.innerText());
+  assert.ok(t > 38 && t < 44, `product at ${t} °C`);
   await shot("new-flowsheet");
 
   assert.deepEqual(errors, []);

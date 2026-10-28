@@ -25,6 +25,8 @@ interface AppState {
   logs: LogEntry[];
   /** Bumped after anything that may change object data, so open views re-read it. */
   revision: number;
+  /** The setup dialog: the new-simulation wizard, the setup editor, or closed. */
+  setup: "new" | "edit" | null;
 
   newFlowsheet(): Promise<void>;
   open(path: string): Promise<void>;
@@ -37,6 +39,7 @@ interface AppState {
   deleteObject(id: string): Promise<void>;
   rename(id: string, tag: string): Promise<void>;
   select(id: string | null): void;
+  openSetup(mode: "new" | "edit" | null): void;
   setColorMode(mode: ColorMode): void;
   toggleStreamTags(): void;
   log(level: LogEntry["level"], text: string): void;
@@ -86,9 +89,13 @@ export const useApp = create<AppState>((set, get) => {
     showStreamTags: false,
     logs: [],
     revision: 0,
+    setup: null,
 
     async newFlowsheet() {
-      await load(await attempt("New flowsheet", () => engine.newFlowsheet()));
+      const summary = await attempt("New flowsheet", () => engine.newFlowsheet());
+      await load(summary);
+      // A new flowsheet cannot solve anything until it has compounds and a property package.
+      if (summary) set({ setup: "new" });
     },
 
     async open(path) {
@@ -165,6 +172,7 @@ export const useApp = create<AppState>((set, get) => {
     },
 
     select: (selection) => set({ selection }),
+    openSetup: (setup) => set({ setup }),
     setColorMode: (colorMode) => set({ colorMode }),
     toggleStreamTags: () => set((s) => ({ showStreamTags: !s.showStreamTags })),
 

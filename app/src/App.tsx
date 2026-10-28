@@ -9,6 +9,7 @@ import { Inspector } from "./panels/Inspector";
 import { LogPanel } from "./panels/LogPanel";
 import { Palette } from "./panels/Palette";
 import { PathDialog } from "./panels/PathDialog";
+import { SetupDialog } from "./panels/SetupDialog";
 import { Toolbar } from "./panels/Toolbar";
 import { connectNotifications, useApp } from "./state/store";
 
@@ -26,6 +27,7 @@ function initialTheme(): Theme {
 
 export function App() {
   const flowsheet = useApp((s) => s.flowsheet);
+  const setup = useApp((s) => s.setup);
   const [dialog, setDialog] = useState<"open" | "save" | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
 
@@ -103,6 +105,7 @@ export function App() {
           <Inspector />
         </Panel>
       </PanelGroup>
+      {setup && flowsheet && <SetupDialog mode={setup} onClose={() => useApp.getState().openSetup(null)} />}
       {dialog && (
         <PathDialog
           mode={dialog}

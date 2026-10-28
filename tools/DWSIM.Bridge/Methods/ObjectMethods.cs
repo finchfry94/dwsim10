@@ -144,11 +144,12 @@ namespace DWSIM.Bridge.Methods
                     ["tag"] = obj.GraphicObject?.Tag,
                     ["kind"] = "material",
                     ["calculated"] = obj.Calculated,
+                    ["spec"] = ms.SpecType.ToString(),
                     ["temperature"] = mix.temperature,
                     ["pressure"] = mix.pressure,
                     ["massFlow"] = mix.massflow,
                     ["molarFlow"] = mix.molarflow,
-                    ["vaporFraction"] = ms.Phases.ContainsKey(2) ? ms.Phases[2].Properties.molarfraction : null,
+                    ["vaporFraction"] = GraphMethods.VaporFraction(ms),
                     ["phases"] = phases
                 };
             }

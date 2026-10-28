@@ -166,6 +166,17 @@ namespace DWSIM.Bridge.Methods
         }
 
         /// <summary>
+        /// The stream's molar vapor fraction. A solved stream with no vapor has none recorded, and
+        /// that is a fraction of zero, not an unknown; an unsolved one has no answer yet.
+        /// </summary>
+        internal static double? VaporFraction(DWSIM.Thermodynamics.Streams.MaterialStream ms)
+        {
+            var vf = ms.Phases.ContainsKey(2) ? ms.Phases[2].Properties.molarfraction : null;
+            if (vf.HasValue && !double.IsNaN(vf.Value)) return vf;
+            return ms.Calculated ? 0.0 : (double?)null;
+        }
+
+        /// <summary>
         /// The few numbers the canvas colours and labels a material stream by, in SI, so a whole
         /// flowsheet's worth comes in one call; null for every other object.
         /// </summary>
@@ -179,7 +190,7 @@ namespace DWSIM.Bridge.Methods
                 ["pressure"] = mix.pressure,
                 ["massFlow"] = mix.massflow,
                 ["molarFlow"] = mix.molarflow,
-                ["vaporFraction"] = ms.Phases.ContainsKey(2) ? ms.Phases[2].Properties.molarfraction : null
+                ["vaporFraction"] = VaporFraction(ms)
             };
         }
 

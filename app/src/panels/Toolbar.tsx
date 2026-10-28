@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen, LayoutGrid, Moon, Play, Save, Sun, Tags } from "lucide-react";
+import { FilePlus2, FlaskConical, FolderOpen, LayoutGrid, Moon, Play, Save, Sun, Tags } from "lucide-react";
 import { COLOR_MODES, type ColorMode } from "../canvas/coloring";
 import { useApp } from "../state/store";
 
@@ -18,7 +18,7 @@ export function Toolbar({
   const colorMode = useApp((s) => s.colorMode);
   const showTags = useApp((s) => s.showStreamTags);
   const engineStatus = useApp((s) => s.engineStatus);
-  const { newFlowsheet, solve, autoLayout, setColorMode, toggleStreamTags } = useApp.getState();
+  const { newFlowsheet, solve, autoLayout, setColorMode, toggleStreamTags, openSetup } = useApp.getState();
   const has = flowsheet !== null;
 
   return (
@@ -33,6 +33,16 @@ export function Toolbar({
         </button>
         <button className="btn" onClick={onSave} disabled={!has} title="Save (Ctrl+S)">
           <Save size={16} /> Save
+        </button>
+      </div>
+      <div className="toolbar-group">
+        <button
+          className="btn"
+          onClick={() => openSetup("edit")}
+          disabled={!has}
+          title="Compounds, property package and units"
+        >
+          <FlaskConical size={16} /> Setup
         </button>
       </div>
       <div className="toolbar-group">

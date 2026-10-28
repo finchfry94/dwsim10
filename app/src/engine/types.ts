@@ -129,6 +129,7 @@ export type StreamDetails =
       tag: string;
       kind: "material";
       calculated: boolean;
+      spec: StreamSpecType;
       temperature: number | null;
       pressure: number | null;
       massFlow: number | null;
@@ -136,6 +137,39 @@ export type StreamDetails =
       vaporFraction: number | null;
       phases: PhaseState[];
     };
+
+export interface CompoundInfo {
+  name: string;
+  formula: string | null;
+  cas: string | null;
+  molecularWeight: number;
+  database: string | null;
+}
+
+/** How a material stream is specified: the two state variables the flash holds fixed. */
+export type StreamSpecType =
+  | "Temperature_and_Pressure"
+  | "Pressure_and_Enthalpy"
+  | "Pressure_and_Entropy"
+  | "Pressure_and_VaporFraction"
+  | "Temperature_and_VaporFraction"
+  | "Pressure_and_SolidFraction"
+  | "Volume_and_Temperature"
+  | "Volume_and_Enthalpy"
+  | "Volume_and_Entropy";
+
+/** Everything stream.specify takes; all SI. Give at most one composition and one total flow. */
+export interface StreamSpecification {
+  temperature?: number;
+  pressure?: number;
+  vaporFraction?: number;
+  molarFlow?: number;
+  massFlow?: number;
+  compoundMolarFlows?: Record<string, number>;
+  compoundMassFlows?: Record<string, number>;
+  moleFractions?: Record<string, number>;
+  massFractions?: Record<string, number>;
+}
 
 export interface SolveResult {
   flowsheetId: string;

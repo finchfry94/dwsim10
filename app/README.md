@@ -35,8 +35,10 @@ don't change.
 | `flowsheet.new/open/save/close/summary/list` | documents (`.dwxmz`, `.dwxml`) |
 | `graph.get/add/move/connect/disconnect/delete/autoLayout` | the flowsheet as nodes, ports and edges |
 | `compounds.search`, `propertyPackages.list` | what a simulation can be set up with |
-| `flowsheet.addCompounds/addPropertyPackage` | set a simulation up (with flash settings) |
-| `stream.specify` | a stream's T, P, vapor fraction, flows and composition, and its flash spec |
+| `flowsheet.addCompounds/removeCompound` | the simulation's compounds (streams follow) |
+| `flowsheet.addPropertyPackage/removePropertyPackage` | its property packages, with flash settings |
+| `unitSystems.list`, `flowsheet.setUnitSystem` | the units it shows |
+| `stream.specify` | a stream's T, P, vapor fraction, total flow and composition (compound flows or fractions), and its flash spec |
 | `object.properties/setProperty/rename` | an object's property list, in the flowsheet's units |
 | `stream.get` | a stream's state and composition by phase (SI) |
 | `solve.run`, `solve.check` | solve (cancellable), and diagnose without solving |
@@ -116,7 +118,6 @@ compressed. The `desktop` workflow builds all three platforms on a tag or on dem
 
 ## Roadmap
 
-See [`docs/tauri-port-plan.md`](../docs/tauri-port-plan.md). Next steps are an editor schema for
-each unit operation (replacing the raw property list), the simulation setup wizard (compounds,
-property package, units), and then porting engine modules to Rust behind `Engine::call`,
-starting with units of measure.
+See [`docs/tauri-port-plan.md`](../docs/tauri-port-plan.md). A new simulation can now be set up
+(wizard: compounds, property package, units), built, specified and solved. Next is an editor
+schema for each unit operation, replacing the raw property list.
