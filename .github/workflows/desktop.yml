@@ -1,0 +1,98 @@
+name: desktop
+
+# The Tauri desktop app (app/) and its engine sidecar. Same policy as build.yml: on a tag and on
+# demand only, since the macOS runner bills by the minute.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - name: Tauri system libraries
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+
+      # The Rust client's last test drives this build of the engine.
+      - name: Build and test the engine bridge
+        run: |
+          dotnet build tools/DWSIM.Bridge -c Release
+          dotnet test tests/DWSIM.Bridge.Tests -c Release
+
+      - name: Frontend
+        working-directory: app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm format:check
+          pnpm typecheck
+          pnpm test
+
+      - name: Rust
+        working-directory: app
+        run: |
+          cargo fmt --all --check
+          cargo clippy --workspace --all-targets -- -D warnings
+          cargo test --workspace
+
+  bundle:
+    name: bundle ${{ matrix.os }}
+    needs: check
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: app
+      - name: Tauri system libraries
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev
+      - name: Bundle
+        working-directory: app
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dwsim-desktop-${{ matrix.os }}
+          path: app/target/release/bundle/
+          retention-days: 14

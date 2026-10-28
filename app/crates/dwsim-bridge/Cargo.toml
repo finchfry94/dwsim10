@@ -1,0 +1,17 @@
+[package]
+name = "dwsim-bridge"
+version = "0.1.0"
+description = "JSON-RPC client for the DWSIM engine sidecar (tools/DWSIM.Bridge)"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }
