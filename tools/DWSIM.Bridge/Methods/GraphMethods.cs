@@ -185,15 +185,17 @@ namespace DWSIM.Bridge.Methods
 
         private static JObject Port(IGraphicObject go, IConnectionPoint cp, string id, string kind)
         {
-            // Connector positions are absolute; the canvas wants them relative to the node box.
+            // Connector positions are absolute; the canvas wants them relative to the node box. Some
+            // connectors are saved without a Position object and keep only their X and Y.
             double w = Math.Max(go.Width, 1), h = Math.Max(go.Height, 1);
+            double px = cp.Position?.X ?? cp.X, py = cp.Position?.Y ?? cp.Y;
             return new JObject
             {
                 ["id"] = id,
                 ["kind"] = kind,
                 ["name"] = string.IsNullOrEmpty(cp.ConnectorName) ? null : cp.ConnectorName,
-                ["x"] = Math.Round((cp.Position.X - go.X) / w, 4),
-                ["y"] = Math.Round((cp.Position.Y - go.Y) / h, 4),
+                ["x"] = Math.Round((px - go.X) / w, 4),
+                ["y"] = Math.Round((py - go.Y) / h, 4),
                 ["attached"] = cp.IsAttached
             };
         }

@@ -128,11 +128,46 @@ namespace DWSIM.Bridge.Rpc
 
         private void Write(JObject message)
         {
-            var text = message.ToString(Formatting.None);
+            var text = Serialize(message);
             lock (_writeLock)
             {
                 _writer.WriteLine(text);
                 _writer.Flush();
+            }
+        }
+
+        /// <summary>
+        /// JSON has no NaN or infinity, and the engine produces both for quantities it has not
+        /// computed; they go out as null, which is what "no value" already means to the client.
+        /// </summary>
+        private sealed class NonFiniteAsNull : JsonConverter
+        {
+            public override bool CanRead => false;
+
+            public override bool CanConvert(Type objectType) => objectType == typeof(double) || objectType == typeof(float);
+
+            public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer)
+            {
+                var d = Convert.ToDouble(value);
+                if (double.IsNaN(d) || double.IsInfinity(d)) writer.WriteNull();
+                else if (value is float f) writer.WriteValue(f);
+                else writer.WriteValue(d);
+            }
+
+            public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer)
+                => throw new NotSupportedException();
+        }
+
+        private static readonly JsonConverter[] WireConverters = { new NonFiniteAsNull() };
+
+        /// <summary>Serializes a message as one line, with non-finite numbers as null.</summary>
+        internal static string Serialize(JObject message)
+        {
+            using (var text = new StringWriter(System.Globalization.CultureInfo.InvariantCulture))
+            {
+                using (var writer = new JsonTextWriter(text) { Formatting = Formatting.None })
+                    message.WriteTo(writer, WireConverters);
+                return text.ToString();
             }
         }
 

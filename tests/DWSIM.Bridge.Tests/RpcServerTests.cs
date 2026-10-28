@@ -54,6 +54,19 @@ namespace DWSIM.Bridge.Tests
         }
 
         [Test]
+        public void NonFiniteNumbersGoOutAsNull()
+        {
+            var line = RpcServer.Serialize(new JObject
+            {
+                ["a"] = double.NaN,
+                ["b"] = double.PositiveInfinity,
+                ["c"] = new JArray(1.5, double.NegativeInfinity),
+                ["d"] = 2.25
+            });
+            Assert.That(line, Is.EqualTo("{\"a\":null,\"b\":null,\"c\":[1.5,null],\"d\":2.25}"));
+        }
+
+        [Test]
         public void NotificationsGetNoResponse()
         {
             var server = Server(out _);
