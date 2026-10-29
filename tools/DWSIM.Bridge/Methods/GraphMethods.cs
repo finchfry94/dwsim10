@@ -55,6 +55,8 @@ namespace DWSIM.Bridge.Methods
             {
                 var obj = session.Inner.AddObject(objectType, (int)Math.Round(x), (int)Math.Round(y), tag ?? "");
                 if (obj == null) throw new RpcException(RpcErrorCodes.EngineError, "The engine could not add a " + type + ".");
+                // The app has no adjust control panel: a new adjust converges with the flowsheet.
+                if (obj is DWSIM.UnitOperations.SpecialOps.Adjust adjust) adjust.SimultaneousAdjust = true;
                 return Node(obj);
             }
         }

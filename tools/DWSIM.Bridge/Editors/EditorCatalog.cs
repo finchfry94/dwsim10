@@ -158,6 +158,21 @@ namespace DWSIM.Bridge.Editors
             ["RCT_Gibbs"] = Reactor(),
             ["RCT_CSTR"] = Reactor(),
             ["RCT_PFR"] = Reactor(),
+            // The variables, set point and expression are in the Variables section (VariablePicker).
+            ["OT_Adjust"] = new TypeEntry { HiddenFields = { "Set-point" } },
+            ["OT_Spec"] = new TypeEntry
+            {
+                HiddenFields = { "Expression" },
+                Choices =
+                {
+                    ["SpecCalculationMode"] = ("Calculation mode", new[]
+                    {
+                        ("GlobalSetting", "Global Setting"), ("AfterSourceObject", "After Source Object"),
+                        ("BeforeTargetObject", "Before Target Object"), ("BeforeFlowsheet", "Before Flowsheet"),
+                        ("AfterFlowsheet", "After Flowsheet"), ("AfterObject", "After Object"), ("BeforeObject", "Before Object")
+                    })
+                }
+            },
         };
 
         private static TypeEntry Reactor() => new TypeEntry

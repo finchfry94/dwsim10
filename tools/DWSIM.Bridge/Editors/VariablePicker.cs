@@ -62,7 +62,9 @@ namespace DWSIM.Bridge.Editors
                 var units = string.IsNullOrEmpty(unit) || adjust.Referenced ? null : UnitsOf(su, unit);
                 if (units != null && units.Count > 1) setPoint["units"] = new JArray(units);
                 section.Fields.Add(setPoint);
-                section.Fields.Add(Bool("adjust:simultaneous", "Solve with the flowsheet solver", adjust.SimultaneousAdjust));
+                var simultaneous = Bool("adjust:simultaneous", "Solve with the flowsheet solver", adjust.SimultaneousAdjust);
+                if (!adjust.SimultaneousAdjust) simultaneous["hint"] = "Off, the adjust does nothing when the flowsheet solves.";
+                section.Fields.Add(simultaneous);
                 yield return section;
             }
             else if (block is Spec spec)
@@ -104,7 +106,8 @@ namespace DWSIM.Bridge.Editors
             try { ids = obj.GetProperties(writable ? PropertyType.WR : PropertyType.ALL) ?? Array.Empty<string>(); }
             catch { ids = Array.Empty<string>(); }
             var su = fs.FlowsheetOptions.SelectedUnitSystem;
-            return new JArray(ids.Distinct().Select(p =>
+            bool Dynamic(string p) { try { return obj.IsDynamicProperty(p); } catch { return false; } }
+            return new JArray(ids.Distinct().OrderBy(Dynamic).Select(p =>
             {
                 var caption = Caption(fs, obj, p);
                 string unit = null;
@@ -319,6 +322,36 @@ namespace DWSIM.Bridge.Editors
                 previous.AttachedAdjustId = "";
                 previous.AdjustVarType = AdjustVarType.None;
             }
+        }
+
+        // ------------------------------------------------------------------ degrees of freedom
+
+        /// <summary>
+        /// The engine's analysis looks for the variables under property ids the blocks do not
+        /// expose, so it always reports them unset; this reads the blocks' own records instead.
+        /// </summary>
+        public static DWSIM.Automation.FluentAPI.Diagnostics.ObjectDegreesOfFreedom Adjust(
+            IFlowsheet fs, DWSIM.Automation.FluentAPI.Diagnostics.ObjectDegreesOfFreedom dof, ISimulationObject block)
+        {
+            var linked = new Dictionary<string, SpecialOpObjectInfo>();
+            if (block is Adjust adjust)
+            {
+                linked["ManipulatedObjectData"] = (SpecialOpObjectInfo)adjust.ManipulatedObjectData;
+                linked["ControlledObjectData"] = (SpecialOpObjectInfo)adjust.ControlledObjectData;
+            }
+            else if (block is Spec spec)
+            {
+                linked["SourceObjectData"] = (SpecialOpObjectInfo)spec.SourceObjectData;
+                linked["TargetObjectData"] = (SpecialOpObjectInfo)spec.TargetObjectData;
+            }
+            else return dof;
+
+            bool IsLinked(SpecialOpObjectInfo i) => i != null && !string.IsNullOrEmpty(i.ID) && fs.SimulationObjects.ContainsKey(i.ID) && !string.IsNullOrEmpty(i.PropertyName);
+            var slots = dof.Slots.Select(s => linked.TryGetValue(s.Property, out var info)
+                ? new DWSIM.Automation.FluentAPI.Diagnostics.SpecificationSlot(s.Name, s.Property, s.Value, s.Units, s.Required, IsLinked(info),
+                    IsLinked(info) ? (info.Name ?? info.ID) + ", " + Caption(fs, fs.SimulationObjects[info.ID], info.PropertyName) : s.Note)
+                : s).ToList();
+            return new DWSIM.Automation.FluentAPI.Diagnostics.ObjectDegreesOfFreedom(dof.ObjectTag, dof.ObjectType, dof.Mode, dof.Supported, slots, dof.Note);
         }
 
         // ------------------------------------------------------------------ helpers

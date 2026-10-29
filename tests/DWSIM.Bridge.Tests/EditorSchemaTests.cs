@@ -64,7 +64,8 @@ namespace DWSIM.Bridge.Tests
             Assert.That(inputs, Is.Not.Empty, "an editor with nothing to set");
             Assert.That(inputs.Select(f => f.Value<string>("label")), Has.None.EqualTo("Object class"));
             Assert.That(inputs.Select(f => f.Value<string>("label")), Has.None.EqualTo("Calculation Mode"));
-            Assert.That(schema["connections"], Is.Not.Empty);
+            // logical blocks link to variables, not streams
+            if (type != "OT_Adjust" && type != "OT_Spec") Assert.That(schema["connections"], Is.Not.Empty);
             foreach (var f in Fields(schema).Where(f => f["units"] != null))
                 Assert.That(f["units"].Select(u => u.Value<string>()), Is.Unique, f.Value<string>("label") + " lists a unit twice");
 
@@ -176,6 +177,166 @@ namespace DWSIM.Bridge.Tests
             var valve = Call("graph.add", new { flowsheetId = fs, type = "Valve", x = 0, y = 0 }).Value<string>("id");
             schema = Call("object.setField", new { flowsheetId = fs, id = valve, field = "choice:FlowCoefficient", value = "Cv" });
             Assert.That(Fields(schema).First(f => f.Value<string>("id") == "choice:FlowCoefficient").Value<string>("value"), Is.EqualTo("Cv"));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
+
+        // ------------------------------------------------------------------ rigorous columns
+
+        private static JToken ById(JToken schema, string id)
+            => Fields(schema).FirstOrDefault(f => f.Value<string>("id") == id)
+               ?? throw new AssertionException("no field " + id + ": " + string.Join(", ", Fields(schema).Select(f => f.Value<string>("id"))));
+
+        private static string Sample(string file)
+        {
+            var folder = TestContext.CurrentContext.TestDirectory;
+            while (folder != null && !System.IO.Directory.Exists(System.IO.Path.Combine(folder, "tests", "flowsheets")))
+                folder = System.IO.Path.GetDirectoryName(folder);
+            if (folder == null) Assert.Ignore("tests/flowsheets not found");
+            return System.IO.Path.Combine(folder, "tests", "flowsheets", file);
+        }
+
+        [Test]
+        public void ADistillationColumnHasItsSectionsAndRefusesTooFewStages()
+        {
+            var fs = NewFlowsheet();
+            var column = Call("graph.add", new { flowsheetId = fs, type = "DistillationColumn", x = 0, y = 0 }).Value<string>("id");
+            var schema = Call("object.schema", new { flowsheetId = fs, id = column });
+            Assert.That(schema["sections"].Select(s => s.Value<string>("id")),
+                Is.SupersetOf(new[] { "column", "condenser", "reboiler", "stages", "streamStages", "estimates" }));
+            Assert.That(Fields(schema).Select(f => f.Value<string>("id")), Has.None.StartsWith("Stage_"), "per-stage properties are in the tables");
+
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:stages", value = 15 });
+            Assert.That(ById(schema, "column:stages").Value<double>("value"), Is.EqualTo(15));
+            Assert.That(ById(schema, "column:stageTable")["rows"].Count(), Is.EqualTo(15));
+            Assert.Throws<RpcException>(() => Call("object.setField", new { flowsheetId = fs, id = column, field = "column:stages", value = 3 }));
+
+            // A reflux ratio has no unit; a product flow takes the molar flow units.
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:C.type", value = "7" });
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:C.value", value = 2.0 });
+            Assert.That(ById(schema, "column:C.value").Value<double>("value"), Is.EqualTo(2.0));
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:R.type", value = "1" });
+            Assert.That(ById(schema, "column:R.value")["units"].Select(u => u.Value<string>()), Does.Contain("kmol/h"));
+            Assert.Throws<RpcException>(() => Call("object.setField", new { flowsheetId = fs, id = column, field = "column:R.value", value = 5.0, unit = "kg/h" }));
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:R.type", value = "6" });
+            Assert.That(ById(schema, "column:R.compound")["options"].Select(o => o.Value<string>("value")), Is.EquivalentTo(new[] { "Water", "Methane" }));
+
+            // Flagged as a refluxed absorber, the column has no reboiler to specify.
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:noReboiler", value = true });
+            Assert.That(schema["dof"]["slots"].Select(s => s.Value<string>("name")), Has.None.EqualTo("Reboiler specification"));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
+
+        [Test]
+        public void AFeedWiredOnTheCanvasGetsTheMiddleStageAndMovesByStage()
+        {
+            var fs = NewFlowsheet();
+            var column = Call("graph.add", new { flowsheetId = fs, type = "DistillationColumn", x = 0, y = 0 }).Value<string>("id");
+            var feed = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "feed" }).Value<string>("id");
+            var bottoms = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "bottoms" }).Value<string>("id");
+            Call("graph.connect", new { flowsheetId = fs, sourceId = feed, sourcePort = "out-0", targetId = column, targetPort = "in-0" });
+            Call("graph.connect", new { flowsheetId = fs, sourceId = column, sourcePort = "out-1", targetId = bottoms, targetPort = "in-0" });
+
+            var schema = Call("object.schema", new { flowsheetId = fs, id = column });
+            var table = ById(schema, "column:streamTable");
+            var stages = table["columns"].First(c => c.Value<string>("key") == "stage")["options"].ToList();
+            string StageOf(JToken t, string tag) => t["rows"].First(r => r.Value<string>("stream") == tag).Value<string>("stage");
+            Assert.That(StageOf(table, "feed"), Is.EqualTo(stages[stages.Count / 2].Value<string>("value")));
+            Assert.That(StageOf(table, "bottoms"), Is.EqualTo(stages.Last().Value<string>("value")));
+
+            var rows = (JArray)table["rows"].DeepClone();
+            rows.First(r => r.Value<string>("stream") == "feed")["stage"] = stages[2]["value"];
+            schema = Call("object.setField", new { flowsheetId = fs, id = column, field = "column:streamTable", value = rows });
+            Assert.That(StageOf(ById(schema, "column:streamTable"), "feed"), Is.EqualTo(stages[2].Value<string>("value")));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
+
+        [TestCase("ExtractiveDistillation.dwxmz", "DistillationColumn", 40, "7")]
+        [TestCase("TraceMethaneStripper.dwxmz", "DistillationColumn", 12, "7")]
+        [TestCase("SimpleAbsorberSample.dwxml", "AbsorptionColumn", 12, null)]
+        public void ASavedColumnShowsItsSettingsAndResolvesAfterAnEdit(string file, string type, int stages, string condenserSpec)
+        {
+            var fs = Call("flowsheet.open", new { path = Sample(file) }).Value<string>("id");
+            var column = Call("graph.get", new { flowsheetId = fs })["nodes"].First(n => n.Value<string>("type") == type).Value<string>("id");
+            var schema = Call("object.schema", new { flowsheetId = fs, id = column });
+            Assert.That(ById(schema, "column:stages").Value<double>("value"), Is.EqualTo(stages));
+            Assert.That(ById(schema, "column:stageTable")["rows"].Count(), Is.EqualTo(stages));
+            Assert.That(ById(schema, "column:streamTable")["rows"], Is.Not.Empty);
+            if (condenserSpec != null) Assert.That(ById(schema, "column:C.type").Value<string>("value"), Is.EqualTo(condenserSpec));
+            else Assert.That(schema["sections"].Select(s => s.Value<string>("id")), Has.None.EqualTo("condenser"));
+
+            Assert.That(Call("solve.run", new { flowsheetId = fs }).Value<bool>("ok"), Is.True);
+            if (file.StartsWith("Extractive", StringComparison.Ordinal))
+            {
+                var before = ById(Call("object.schema", new { flowsheetId = fs, id = column }), "PROP_DC_5").Value<double>("value");
+                Call("object.setField", new { flowsheetId = fs, id = column, field = "column:C.value", value = 4.0 });
+                var result = Call("solve.run", new { flowsheetId = fs });
+                Assert.That(result.Value<bool>("ok"), Is.True, string.Join(" | ", result["errors"]));
+                schema = Call("object.schema", new { flowsheetId = fs, id = column });
+                Assert.That(ById(schema, "PROP_DC_5").Value<double>("value"), Is.Not.EqualTo(before).Within(1.0), "the condenser duty follows the reflux ratio");
+                Assert.That(ById(schema, "column:profile")["rows"].Count(), Is.EqualTo(stages));
+            }
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
+
+        // ------------------------------------------------------------------ adjust and spec
+
+        [Test]
+        public void AnAdjustPicksItsVariablesAndConvergesWithTheFlowsheet()
+        {
+            var fs = Call("flowsheet.new", new { name = "adjust" }).Value<string>("id");
+            Call("flowsheet.addCompounds", new { flowsheetId = fs, names = new[] { "Water" } });
+            Call("flowsheet.addPropertyPackage", new { flowsheetId = fs, name = "Steam Tables (IAPWS-IF97)" });
+            Call("flowsheet.setUnitSystem", new { flowsheetId = fs, name = "SI" });
+            var feed = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "in" }).Value<string>("id");
+            Call("stream.specify", new { flowsheetId = fs, id = feed, temperature = 298.15, pressure = 101325.0, massFlow = 1.0,
+                moleFractions = new Dictionary<string, double> { ["Water"] = 1.0 } });
+            var product = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "out" }).Value<string>("id");
+            var heater = Call("graph.add", new { flowsheetId = fs, type = "Heater", x = 0, y = 0 }).Value<string>("id");
+            var duty = Call("graph.add", new { flowsheetId = fs, type = "EnergyStream", x = 0, y = 0 }).Value<string>("id");
+            Call("graph.connect", new { flowsheetId = fs, sourceId = feed, sourcePort = "out-0", targetId = heater, targetPort = "in-0" });
+            Call("graph.connect", new { flowsheetId = fs, sourceId = heater, sourcePort = "out-0", targetId = product, targetPort = "in-0" });
+            Call("graph.connect", new { flowsheetId = fs, sourceId = duty, sourcePort = "out-0", targetId = heater, targetPort = "in-1" });
+            Call("object.setField", new { flowsheetId = fs, id = heater, field = "PROP_HT_3", value = 100.0, unit = "kW" });
+
+            var adjust = Call("graph.add", new { flowsheetId = fs, type = "OT_Adjust", x = 0, y = 0 }).Value<string>("id");
+            var schema = Call("object.schema", new { flowsheetId = fs, id = adjust });
+            Assert.That(schema["dof"].Value<int>("remaining"), Is.EqualTo(2));
+            Assert.That(ById(schema, "variable:manipulated").Value<bool>("missing"), Is.True);
+
+            var writable = Call("object.variables", new { flowsheetId = fs, id = heater, writable = true }).Select(p => p.Value<string>("value")).ToList();
+            Assert.That(writable, Does.Contain("PROP_HT_3"));
+            Assert.Throws<RpcException>(() => Call("object.setField", new { flowsheetId = fs, id = adjust, field = "variable:manipulated",
+                value = new { @object = heater, property = "NotAProperty" } }));
+
+            Call("object.setField", new { flowsheetId = fs, id = adjust, field = "variable:manipulated", value = new { @object = heater, property = "PROP_HT_3" } });
+            Call("object.setField", new { flowsheetId = fs, id = adjust, field = "variable:controlled", value = new { @object = product, property = "PROP_MS_0" } });
+            schema = Call("object.setField", new { flowsheetId = fs, id = adjust, field = "adjust:setPoint", value = 80.0, unit = "C" });
+            Assert.That(schema["dof"].Value<int>("remaining"), Is.EqualTo(0));
+            Assert.That(ById(schema, "adjust:setPoint").Value<double>("value"), Is.EqualTo(353.15).Within(1e-9));
+            Assert.That(ById(schema, "variable:controlled")["value"].Value<string>("object"), Is.EqualTo(product));
+
+            Assert.That(Call("solve.run", new { flowsheetId = fs }).Value<bool>("ok"), Is.True);
+            Assert.That(Call("stream.get", new { flowsheetId = fs, id = product }).Value<double>("temperature"), Is.EqualTo(353.15).Within(0.01));
+            // the U01 heater duty: 1 kg/s of water from 25 to 80 °C
+            Assert.That(Field(Call("object.schema", new { flowsheetId = fs, id = heater }), "Heat Added").Value<double>("value"), Is.EqualTo(230.06).Within(0.05));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
+
+        [Test]
+        public void ASpecPicksItsVariablesAndEvaluatesItsExpression()
+        {
+            var fs = NewFlowsheet();
+            var a = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "a" }).Value<string>("id");
+            var b = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "b" }).Value<string>("id");
+            var spec = Call("graph.add", new { flowsheetId = fs, type = "OT_Spec", x = 0, y = 0 }).Value<string>("id");
+            Call("object.setField", new { flowsheetId = fs, id = spec, field = "variable:source", value = new { @object = a, property = "PROP_MS_0" } });
+            Call("object.setField", new { flowsheetId = fs, id = spec, field = "variable:target", value = new { @object = b, property = "PROP_MS_0" } });
+            var schema = Call("object.setField", new { flowsheetId = fs, id = spec, field = "spec:expression", value = "X + 10" });
+            Assert.That(schema["dof"].Value<int>("remaining"), Is.EqualTo(0));
+            Assert.That(ById(schema, "spec:expression").Value<string>("hint"), Does.Contain("Now Y ="));
+            Assert.That(Fields(schema).Select(f => f.Value<string>("id")), Has.None.EqualTo("spec:reference"));
+            schema = Call("object.setField", new { flowsheetId = fs, id = spec, field = "choice:SpecCalculationMode", value = "AfterObject" });
+            Assert.That(ById(schema, "spec:reference")["options"].Select(o => o.Value<string>("value")), Does.Contain(a));
             Call("flowsheet.close", new { flowsheetId = fs });
         }
 

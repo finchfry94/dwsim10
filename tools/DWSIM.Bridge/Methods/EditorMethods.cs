@@ -90,6 +90,19 @@ namespace DWSIM.Bridge.Methods
             }
         }
 
+        /// <summary>
+        /// The properties a logical block can point at on another object, for a variable field's
+        /// second step: <c>[{ value, label, unit }]</c>. <paramref name="writable"/> lists only the
+        /// properties a block may write (an Adjust's manipulated, a Spec's target variable).
+        /// </summary>
+        [RpcMethod("object.variables")]
+        public JArray Variables(string flowsheetId, string id, bool writable = false)
+        {
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+                return VariablePicker.Properties(session.Inner, session.Object(id), writable);
+        }
+
         /// <summary>Sets the calculation mode, by enum value name, and returns the new schema.</summary>
         [RpcMethod("object.setMode")]
         public JObject SetMode(string flowsheetId, string id, string value)
@@ -469,7 +482,8 @@ namespace DWSIM.Bridge.Methods
             try
             {
                 var dof = DegreesOfFreedomAnalysis.Analyze(fs, obj);
-                return dof != null && obj is Column column ? ColumnFields.Adjust(dof, column) : dof;
+                if (dof != null && obj is Column column) return ColumnFields.Adjust(dof, column);
+                return dof == null ? null : VariablePicker.Adjust(fs, dof, obj);
             }
             catch { return null; }
         }

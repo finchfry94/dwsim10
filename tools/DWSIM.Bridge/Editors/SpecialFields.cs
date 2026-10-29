@@ -33,6 +33,10 @@ namespace DWSIM.Bridge.Editors
         {
             switch (obj)
             {
+                case DWSIM.UnitOperations.SpecialOps.Adjust _:
+                case DWSIM.UnitOperations.SpecialOps.Spec _:
+                    foreach (var section in VariablePicker.For(fs, obj)) yield return section;
+                    break;
                 case Column column:
                     foreach (var section in ColumnFields.For(fs, column)) yield return section;
                     break;
@@ -83,6 +87,7 @@ namespace DWSIM.Bridge.Editors
         public static bool TrySet(IFlowsheet fs, ISimulationObject obj, string field, JToken value, string unit)
         {
             if (obj is Column rigorous && ColumnFields.TrySet(fs, rigorous, field, value, unit)) return true;
+            if (VariablePicker.TrySet(fs, obj, field, value, unit)) return true;
             if (field.StartsWith("split:", StringComparison.Ordinal) && obj is Splitter splitter)
             {
                 var index = int.Parse(field.Substring(6), CultureInfo.InvariantCulture);
