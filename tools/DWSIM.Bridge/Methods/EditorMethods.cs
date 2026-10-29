@@ -9,6 +9,7 @@ using DWSIM.Interfaces;
 using DWSIM.Interfaces.Enums;
 using DWSIM.Interfaces.Enums.GraphicObjects;
 using DWSIM.SharedClasses.SystemsOfUnits;
+using DWSIM.UnitOperations.UnitOperations;
 using Newtonsoft.Json.Linq;
 
 namespace DWSIM.Bridge.Methods
@@ -145,10 +146,18 @@ namespace DWSIM.Bridge.Methods
             // A numeric copy of the calculation mode and other internals the editor shows another way.
             all = all.Where(p => !HiddenLabels.Contains(Label(fs, p)) && !entry.HiddenFields.Contains(Label(fs, p))).ToList();
 
+            // A rigorous column's inputs and per-stage results come in its own sections and profiles.
+            if (obj is Column)
+            {
+                inputs.Clear();
+                all = all.Where(p => !p.StartsWith("Stage_", StringComparison.Ordinal) && !p.StartsWith("Stream '", StringComparison.Ordinal)
+                                     && !ColumnInputs.Contains(p)).ToList();
+            }
+
             var spec = new JArray();
             foreach (var p in all.Where(inputs.Contains))
                 spec.Add(PropertyField(fs, su, obj, p, writableNow.Contains(p), missing.Contains(p)));
-            foreach (var choice in Choices(obj, entry, mode))
+            foreach (var choice in obj is Column ? Enumerable.Empty<JObject>() : Choices(obj, entry, mode))
                 spec.Add(choice);
 
             var results = new JArray();
@@ -158,13 +167,17 @@ namespace DWSIM.Bridge.Methods
             var dynamics = new JArray();
             foreach (var key in dynamicIds) dynamics.Add(DynamicField(obj, key));
 
-            var sections = new JArray { new JObject { ["id"] = "spec", ["title"] = "Specification", ["fields"] = spec } };
+            var sections = new JArray();
+            if (spec.Count > 0 || !(obj is Column)) sections.Add(new JObject { ["id"] = "spec", ["title"] = "Specification", ["fields"] = spec });
             foreach (var special in SpecialFields.For(fs, obj))
             {
                 foreach (var f in special.Fields)
-                    if (dof != null && dof.Missing.Any(m => string.Equals(m.Name, f.Value<string>("label"), StringComparison.OrdinalIgnoreCase)))
+                    if (dof != null && dof.Missing.Any(m => string.Equals(m.Name, f.Value<string>("label"), StringComparison.OrdinalIgnoreCase)
+                                                             || ColumnFields.SlotField(m.Property) == f.Value<string>("id")))
                         f["missing"] = true;
-                sections.Add(new JObject { ["id"] = special.Id, ["title"] = special.Title, ["fields"] = new JArray(special.Fields) });
+                var section = new JObject { ["id"] = special.Id, ["title"] = special.Title, ["fields"] = new JArray(special.Fields) };
+                if (special.Collapsed) section["collapsed"] = true;
+                sections.Add(section);
             }
             sections.Add(new JObject { ["id"] = "results", ["title"] = "Results", ["fields"] = results });
             if (dynamics.Count > 0)
@@ -437,6 +450,12 @@ namespace DWSIM.Bridge.Methods
                 throw new RpcException(RpcErrorCodes.EngineError, $"'{Label(session.Inner, id)}' could not be set.");
         }
 
+        /// <summary>Column properties the column sections edit, kept out of its results.</summary>
+        private static readonly HashSet<string> ColumnInputs = new HashSet<string>
+        {
+            "PROP_DC_2", "PROP_DC_7", "PROP_DC_8", "Condenser_Specification_Value", "Reboiler_Specification_Value", "Global_Stage_Efficiency"
+        };
+
         private static void MarkChanged(ISimulationObject obj)
         {
             obj.Calculated = false;
@@ -447,7 +466,11 @@ namespace DWSIM.Bridge.Methods
 
         private static ObjectDegreesOfFreedom Dof(IFlowsheet fs, ISimulationObject obj)
         {
-            try { return DegreesOfFreedomAnalysis.Analyze(fs, obj); }
+            try
+            {
+                var dof = DegreesOfFreedomAnalysis.Analyze(fs, obj);
+                return dof != null && obj is Column column ? ColumnFields.Adjust(dof, column) : dof;
+            }
             catch { return null; }
         }
 

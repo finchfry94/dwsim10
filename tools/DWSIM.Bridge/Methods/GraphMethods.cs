@@ -86,6 +86,10 @@ namespace DWSIM.Bridge.Methods
                 try
                 {
                     session.Inner.ConnectObjects(source, target, from, to);
+                    // A stream wired to a rigorous column gets a stage, so the column solves as drawn.
+                    foreach (var end in new[] { sourceId, targetId })
+                        if (session.Object(end) is DWSIM.UnitOperations.UnitOperations.Column column)
+                            Editors.ColumnFields.EnsureStreamStages(column);
                 }
                 catch (Exception ex)
                 {

@@ -25,6 +25,7 @@ namespace DWSIM.Bridge.Editors
         {
             public string Id;
             public string Title;
+            public bool Collapsed;
             public List<JObject> Fields = new List<JObject>();
         }
 
@@ -32,6 +33,9 @@ namespace DWSIM.Bridge.Editors
         {
             switch (obj)
             {
+                case Column column:
+                    foreach (var section in ColumnFields.For(fs, column)) yield return section;
+                    break;
                 case Splitter splitter:
                     yield return SplitterRatios(fs, splitter);
                     break;
@@ -78,6 +82,7 @@ namespace DWSIM.Bridge.Editors
         /// <summary>Sets a special field; false when the id is not one of these.</summary>
         public static bool TrySet(IFlowsheet fs, ISimulationObject obj, string field, JToken value, string unit)
         {
+            if (obj is Column rigorous && ColumnFields.TrySet(fs, rigorous, field, value, unit)) return true;
             if (field.StartsWith("split:", StringComparison.Ordinal) && obj is Splitter splitter)
             {
                 var index = int.Parse(field.Substring(6), CultureInfo.InvariantCulture);

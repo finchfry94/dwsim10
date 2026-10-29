@@ -2699,6 +2699,8 @@ Imports DWSIM.ExtensionMethods
     Public Sub CheckTag(obj As IGraphicObject)
 
         While GetFlowsheetSimulationObject(obj.Tag) IsNot Nothing
+            ' a tag with no number to count up ("E-DC") never changed and looped forever: number it
+            If Not Regex.IsMatch(obj.Tag, "\d") Then obj.Tag &= "-1"
             obj.Tag = Regex.Replace(obj.Tag, "\d+", Function(m) (Integer.Parse(m.Value) + 1).ToString(New String("0", m.Value.Length)))
         End While
 

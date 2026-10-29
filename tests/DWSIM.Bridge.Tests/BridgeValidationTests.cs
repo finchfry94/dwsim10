@@ -479,18 +479,116 @@ namespace DWSIM.Bridge.Tests
         /// A flowsheet in the bridge, in SI units, built as the editors build one: objects added,
         /// connected port to port, modes and fields set by the labels the editor shows.
         /// </summary>
+        // tests/DWSIM.Validation.Tests UnitOpsAdvanced A01 and Flowsheets F11: rigorous columns wired
+        // on the canvas (graph.connect) and set up through the column sections, as the app does.
+        // Besides the suite's own checks, the duties must equal the in-process run's.
+
+        [Test]
+        public void A01_Distillation_EthanolWater()
+        {
+            using var sim = new Sim(_bridge, "NRTL", "Water", "Ethanol");
+            var feed = sim.Feed("feed", 300.0, 101325.0, molarFlow: 100.0,
+                moleFractions: new Dictionary<string, double> { ["Water"] = 0.5, ["Ethanol"] = 0.5 });
+            var (column, distillate, bottoms) = Column(sim, feed, stages: 20, feedStage: 10);
+            sim.Set(column, "column:C.type", "7");
+            sim.Set(column, "column:C.value", 2.0);
+            sim.Set(column, "column:R.type", "1");
+            sim.Set(column, "column:R.value", 75.0, "mol/s");
+            sim.Set(column, "column:topPressure", 101325.0, "Pa");
+            sim.Set(column, "column:pressureDrop", 0.0, "Pa");
+            Assert.That(sim.Schema(column)["dof"].Value<int>("remaining"), Is.EqualTo(0));
+            sim.Solve();
+
+            var d = new StreamView(sim.Stream(distillate));
+            var b = new StreamView(sim.Stream(bottoms));
+            new Checks("EtOH/H2O distillation - NRTL, 20 stages, RR=2, B=75 mol/s")
+                .Row("Global balance F = D + B", 100.0, d.MolarFlow + b.MolarFlow, 0.001)
+                .Row("B (specified)", 75.0, b.MolarFlow, 0.001)
+                .InRange("Distillate rich in EtOH (>50%)", 0.5, 1.0, d.X(0, "Ethanol"))
+                .InRange("Bottoms lean in EtOH (<50%)", 0.0, 0.5, b.X(0, "Ethanol"))
+                .Row("Condenser duty (in-process run)", 2955.12006, sim.Result(column, "Condenser Duty", "kW"), 1e-6)
+                .Row("Reboiler duty (in-process run)", 3488.193429, -sim.Result(column, "Reboiler Duty", "kW"), 1e-6)
+                .Assert();
+        }
+
+        [Test]
+        public void F11_BenzeneTolueneDistillation()
+        {
+            using var sim = new Sim(_bridge, "Peng-Robinson (PR)", "Benzene", "Toluene", "Water");
+            var raw = sim.Feed("raw_feed", 300.0, 101325.0, molarFlow: 100.0,
+                moleFractions: new Dictionary<string, double> { ["Benzene"] = 0.5, ["Toluene"] = 0.5, ["Water"] = 0.0 });
+            var hot = sim.Feed("hot_utility", 373.15, 101325.0, massFlow: 2.0,
+                moleFractions: new Dictionary<string, double> { ["Water"] = 1.0, ["Benzene"] = 0.0, ["Toluene"] = 0.0 });
+            var preheated = sim.Add("MaterialStream", "preheated_feed");
+            var utilOut = sim.Add("MaterialStream", "utility_out");
+            var hx = sim.Add("HeatExchanger", "HX-1");
+            sim.Connect(hot, "out-0", hx, "in-0");
+            sim.Connect(raw, "out-0", hx, "in-1");
+            sim.Connect(hx, "out-0", utilOut, "in-0");
+            sim.Connect(hx, "out-1", preheated, "in-0");
+            sim.Mode(hx, "CalcBothTemp_UA");
+            sim.Set(hx, "Heat Exchange Area (A)", 1.0, "m2");
+            sim.Set(hx, "Global Heat Transfer Coefficient (U)", 8000.0, "W/[m2.K]");
+            sim.Set(hx, "Pressure Drop (Hot Side)", 0.0, "Pa");
+            sim.Set(hx, "Pressure Drop (Cold Side)", 0.0, "Pa");
+
+            var (column, distillate, bottoms) = Column(sim, preheated, stages: 30, feedStage: 15);
+            sim.Set(column, "column:C.type", "7");
+            sim.Set(column, "column:C.value", 3.0);
+            sim.Set(column, "column:R.type", "1");
+            sim.Set(column, "column:R.value", 50.0, "mol/s");
+            sim.Set(column, "column:topPressure", 101325.0, "Pa");
+            sim.Set(column, "column:pressureDrop", 0.0, "Pa");
+            sim.Set(column, "column:maxIterations", 200);
+            sim.Set(column, "column:tolerance", 1e-3);
+            sim.Solve();
+
+            var d = new StreamView(sim.Stream(distillate));
+            var b = new StreamView(sim.Stream(bottoms));
+            new Checks("F11 - Bz/Tol distillation with feed preheat")
+                .Row("Molar balance F = D + B", 100.0, d.MolarFlow + b.MolarFlow, 0.001)
+                .Row("Bottoms flow B = 50", 50.0, b.MolarFlow, 0.001)
+                .InRange("Distillate rich in Bz (>85%)", 0.85, 1.0, d.X(0, "Benzene"))
+                .InRange("Bottoms rich in Tol (>85%)", 0.85, 1.0, b.X(0, "Toluene"))
+                .InRange("Feed preheated above 300 K", 300.1, 400.0, new StreamView(sim.Stream(preheated)).T)
+                .Row("Preheated feed T (in-process run)", 332.018048, new StreamView(sim.Stream(preheated)).T, 1e-6)
+                .Row("Condenser duty (in-process run)", 6062.091572, sim.Result(column, "Condenser Duty", "kW"), 1e-6)
+                .Row("Reboiler duty (in-process run)", 6636.153654, -sim.Result(column, "Reboiler Duty", "kW"), 1e-6)
+                .Assert();
+        }
+
+        /// <summary>
+        /// A distillation column with its feed, distillate, bottoms and both duties wired on the
+        /// canvas, its stage count set and the feed moved to <paramref name="feedStage"/> (zero-based).
+        /// </summary>
+        private static (string column, string distillate, string bottoms) Column(Sim sim, string feed, int stages, int feedStage)
+        {
+            var column = sim.Add("DistillationColumn", "T-101");
+            var distillate = sim.Add("MaterialStream", "distillate");
+            var bottoms = sim.Add("MaterialStream", "bottoms");
+            sim.Connect(feed, "out-0", column, "in-0");
+            sim.Connect(column, "out-0", distillate, "in-0");
+            sim.Connect(column, "out-1", bottoms, "in-0");
+            sim.Energy(column, "out-10", outgoing: true);
+            sim.Energy(column, "in-10");
+            sim.Set(column, "column:stages", stages);
+            var feedTag = sim.Stream(feed).Value<string>("tag");
+            sim.Stage(column, feedTag, feedStage);
+            return (column, distillate, bottoms);
+        }
+
         private sealed class Sim : IDisposable
         {
             private readonly BridgeProcess _b;
             private readonly string _id;
             private string _compound;
 
-            public Sim(BridgeProcess bridge, string package, string compound)
+            public Sim(BridgeProcess bridge, string package, params string[] compounds)
             {
                 _b = bridge;
-                _compound = compound;
+                _compound = compounds[0];
                 _id = _b.Call("flowsheet.new", new { name = "validation" }).Value<string>("id");
-                _b.Call("flowsheet.addCompounds", new { flowsheetId = _id, names = new[] { compound } });
+                _b.Call("flowsheet.addCompounds", new { flowsheetId = _id, names = compounds });
                 _b.Call("flowsheet.addPropertyPackage", new { flowsheetId = _id, name = package });
                 _b.Call("flowsheet.setUnitSystem", new { flowsheetId = _id, name = "SI" });
             }
@@ -498,15 +596,28 @@ namespace DWSIM.Bridge.Tests
             public string Add(string type, string tag)
                 => _b.Call("graph.add", new { flowsheetId = _id, type, x = 0, y = 0, tag }).Value<string>("id");
 
-            public string Feed(string tag, double temperature, double pressure, double? massFlow = null, double? molarFlow = null)
+            public string Feed(string tag, double temperature, double pressure, double? massFlow = null, double? molarFlow = null,
+                Dictionary<string, double> moleFractions = null)
             {
                 var id = Add("MaterialStream", tag);
                 _b.Call("stream.specify", new
                 {
                     flowsheetId = _id, id, temperature, pressure, massFlow, molarFlow,
-                    moleFractions = new Dictionary<string, double> { [_compound] = 1.0 }
+                    moleFractions = moleFractions ?? new Dictionary<string, double> { [_compound] = 1.0 }
                 });
                 return id;
+            }
+
+            public JToken Schema(string unit) => _b.Call("object.schema", new { flowsheetId = _id, id = unit });
+
+            /// <summary>Puts a stream on a column stage by its zero-based index, through the stream stages table.</summary>
+            public void Stage(string column, string streamTag, int stageIndex)
+            {
+                var table = FieldOf(Schema(column), "column:streamTable");
+                var stages = table["columns"].First(c => c.Value<string>("key") == "stage")["options"];
+                var rows = (JArray)table["rows"].DeepClone();
+                rows.First(r => r.Value<string>("stream") == streamTag)["stage"] = stages[stageIndex]["value"];
+                _b.Call("object.setField", new { flowsheetId = _id, id = column, field = "column:streamTable", value = rows });
             }
 
             public void Connect(string source, string sourcePort, string target, string targetPort)
@@ -521,7 +632,7 @@ namespace DWSIM.Bridge.Tests
             /// <summary>An energy stream on a unit's energy port, into it or out of it.</summary>
             public string Energy(string unit, string port, bool outgoing = false)
             {
-                var e = Add("EnergyStream", "E-" + unit.Substring(0, Math.Min(6, unit.Length)));
+                var e = Add("EnergyStream", "E-" + port + "-" + unit.Substring(0, Math.Min(6, unit.Length)));
                 if (outgoing) Connect(unit, port, e, "in-0");
                 else Connect(e, "out-0", unit, port);
                 return e;
@@ -529,7 +640,7 @@ namespace DWSIM.Bridge.Tests
 
             public void Mode(string unit, string value) => _b.Call("object.setMode", new { flowsheetId = _id, id = unit, value });
 
-            private JToken FieldOf(JToken schema, string labelOrId)
+            public JToken FieldOf(JToken schema, string labelOrId)
                 => schema["sections"].SelectMany(s => s["fields"]).FirstOrDefault(f =>
                        f.Value<string>("id") == labelOrId || f.Value<string>("label") == labelOrId)
                    ?? throw new AssertionException($"no field '{labelOrId}' in {schema.Value<string>("type")}: " +
@@ -618,6 +729,8 @@ namespace DWSIM.Bridge.Tests
             public double T => _s.Value<double>("temperature");
 
             public double P => _s.Value<double>("pressure");
+
+            public double MolarFlow => _s.Value<double>("molarFlow");
 
             private JToken Phase(int index) => _s["phases"].FirstOrDefault(p => p.Value<int>("index") == index);
 
