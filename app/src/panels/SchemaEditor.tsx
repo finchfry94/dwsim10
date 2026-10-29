@@ -1,4 +1,4 @@
-import { AlertCircle, CheckCircle2, ChevronRight, Link2, Plus, Trash2, Unlink } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronRight, Link2, Play, Plus, Trash2, Unlink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { engine } from "../engine/api";
 import { EngineError } from "../engine/transport";
@@ -10,9 +10,12 @@ import type {
   SchemaField,
   SchemaSection,
   TableField,
+  VariableField,
+  VariableOption,
 } from "../engine/types";
 import { formatNumber, unitLabel } from "../lib/units";
 import { useApp } from "../state/store";
+import { ProfileChart } from "./ProfileChart";
 
 /**
  * A unit operation's editor, rendered from the schema the engine bridge generates for it:
@@ -87,13 +90,19 @@ export function SchemaEditor({ flowsheetId, id }: { flowsheetId: string; id: str
       {schema.sections
         .filter((s) => s.id !== "results")
         .map((section) => (
-          <Section key={section.id} section={section} disabled={busy} onSet={setField} />
+          <Section
+            key={section.id}
+            flowsheetId={flowsheetId}
+            section={section}
+            disabled={busy}
+            onSet={setField}
+          />
         ))}
       <Connections flowsheetId={flowsheetId} schema={schema} disabled={busy} />
       {schema.sections
         .filter((s) => s.id === "results" && s.fields.length > 0)
         .map((section) => (
-          <Section key={section.id} section={section} disabled onSet={setField} />
+          <Section key={section.id} flowsheetId={flowsheetId} section={section} disabled onSet={setField} />
         ))}
     </div>
   );
@@ -121,10 +130,12 @@ function DofBanner({ schema }: { schema: EditorSchema }) {
 }
 
 function Section({
+  flowsheetId,
   section,
   disabled,
   onSet,
 }: {
+  flowsheetId: string;
   section: SchemaSection;
   disabled: boolean;
   onSet: (field: SchemaField, value: unknown, unit?: string | null) => Promise<boolean>;
@@ -141,7 +152,7 @@ function Section({
       {open && (
         <div className="schema-fields">
           {section.fields.map((f) => (
-            <FieldRow key={f.id} field={f} disabled={disabled} onSet={onSet} />
+            <FieldRow key={f.id} flowsheetId={flowsheetId} field={f} disabled={disabled} onSet={onSet} />
           ))}
         </div>
       )}
@@ -150,15 +161,40 @@ function Section({
 }
 
 function FieldRow({
+  flowsheetId,
   field,
   disabled,
   onSet,
 }: {
+  flowsheetId: string;
   field: SchemaField;
   disabled: boolean;
   onSet: (field: SchemaField, value: unknown, unit?: string | null) => Promise<boolean>;
 }) {
-  if (field.kind === "table") return <TableEditor field={field} disabled={disabled} onSet={onSet} />;
+  if (field.kind === "table")
+    return field.readOnly ? (
+      <ResultTable field={field} />
+    ) : (
+      <TableEditor field={field} disabled={disabled} onSet={onSet} />
+    );
+  if (field.kind === "variable")
+    return <VariableInput flowsheetId={flowsheetId} field={field} disabled={disabled} onSet={onSet} />;
+  if (field.kind === "action")
+    return (
+      <div className="schema-row">
+        <span className="schema-label">{field.hint ?? ""}</span>
+        <span className="schema-value">
+          <button
+            className="btn"
+            disabled={disabled || !field.editable}
+            onClick={() => void onSet(field, true)}
+            data-testid={`action-${field.id}`}
+          >
+            <Play size={13} /> {field.label}
+          </button>
+        </span>
+      </div>
+    );
   return (
     <div
       className={`schema-row ${field.missing ? "is-missing" : ""} ${field.editable ? "" : "is-calculated"}`}
@@ -169,6 +205,9 @@ function FieldRow({
       </span>
       <span className="schema-value">
         {field.kind === "number" && <NumberInput field={field} disabled={disabled} onSet={onSet} />}
+        {field.kind === "number" && field.calculated != null && field.calculated !== field.value && (
+          <span className="calculated-note">reached {formatNumber(field.calculated, 5)}</span>
+        )}
         {field.kind === "choice" && <ChoiceInput field={field} disabled={disabled} onSet={onSet} />}
         {field.kind === "bool" && (
           <input
@@ -396,7 +435,11 @@ function TableEditor({
               <tr key={i}>
                 {field.columns.map((c) => (
                   <td key={c.key} className={c.kind === "number" ? "num" : ""}>
-                    {!c.editable || !field.editable ? (
+                    {!(c.key in r) ? (
+                      <span className="muted" title="Does not apply">
+                        —
+                      </span>
+                    ) : !c.editable || !field.editable ? (
                       <span>{String(r[c.key] ?? "")}</span>
                     ) : c.kind === "choice" ? (
                       <select
@@ -406,6 +449,7 @@ function TableEditor({
                         onChange={(e) => update(i, c.key, e.target.value)}
                         aria-label={`${c.label} ${i + 1}`}
                       >
+                        {r[c.key] === null && <option value="">Choose…</option>}
                         {c.options?.map((o) => (
                           <option key={o.value} value={o.value}>
                             {o.label}
@@ -483,6 +527,138 @@ function TableEditor({
           </button>
         </span>
       </div>
+    </div>
+  );
+}
+
+/** A results table: values as the engine gives them, with its chart when it has one. */
+function ResultTable({ field }: { field: TableField }) {
+  const optionLabel = (key: string, value: unknown) =>
+    field.columns.find((c) => c.key === key)?.options?.find((o) => o.value === value)?.label;
+  return (
+    <div className="schema-table" data-testid={`table-${field.id}`}>
+      <div className="field-label">{field.label}</div>
+      <ProfileChart field={field} />
+      <div className="table-scroll table-scroll-tall">
+        <table className="grid-table">
+          <thead>
+            <tr>
+              {field.columns.map((c) => (
+                <th key={c.key}>
+                  {c.label}
+                  {c.unit && <span className="unit"> ({unitLabel(c.unit)})</span>}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {field.rows.map((r, i) => (
+              <tr key={i}>
+                {field.columns.map((c) => {
+                  const v = r[c.key];
+                  return (
+                    <td key={c.key} className={c.kind === "number" ? "num" : ""}>
+                      {v === null || v === undefined
+                        ? "—"
+                        : typeof v === "number"
+                          ? formatNumber(v, 6)
+                          : (optionLabel(c.key, v) ?? String(v))}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The variable a logical block reads or writes: pick the object, then one of its properties.
+ * The properties of a newly picked object come from the engine before anything is set.
+ */
+function VariableInput({
+  flowsheetId,
+  field,
+  disabled,
+  onSet,
+}: {
+  flowsheetId: string;
+  field: VariableField;
+  disabled: boolean;
+  onSet: (field: SchemaField, value: unknown) => Promise<boolean>;
+}) {
+  const log = useApp((s) => s.log);
+  const [object, setObject] = useState(field.value.object);
+  const [properties, setProperties] = useState<VariableOption[]>(field.properties);
+  useEffect(() => {
+    setObject(field.value.object);
+    setProperties(field.properties);
+  }, [field.value.object, field.properties]);
+
+  const pickObject = async (next: string) => {
+    setObject(next);
+    setProperties([]);
+    if (!next) return;
+    try {
+      setProperties(await engine.variables(flowsheetId, next, field.writable));
+    } catch (e) {
+      log("error", `${field.label}: ${EngineError.from(e).message}`);
+    }
+  };
+
+  const property = object === field.value.object ? (field.value.property ?? "") : "";
+  const objectLabel = field.objects.find((o) => o.value === object)?.label ?? "the object";
+  return (
+    <div className={`schema-row schema-row-stack ${field.missing ? "is-missing" : ""}`}>
+      <span className="schema-label" title={field.hint ?? undefined}>
+        {field.label}
+        {field.missing && <span className="badge badge-missing">required</span>}
+      </span>
+      <span className="variable-picker">
+        <select
+          className="select"
+          value={object ?? ""}
+          disabled={disabled}
+          onChange={(e) => void pickObject(e.target.value)}
+          aria-label={`${field.label} object`}
+        >
+          <option value="">{field.objects.length ? "Choose an object…" : "No other objects yet"}</option>
+          {field.objects.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+        <select
+          className="select"
+          value={property}
+          disabled={disabled || !object || properties.length === 0}
+          onChange={(e) => e.target.value && void onSet(field, { object, property: e.target.value })}
+          aria-label={`${field.label} property`}
+        >
+          <option value="">
+            {!object
+              ? "Then a property"
+              : properties.length === 0
+                ? `No ${field.writable ? "writable " : ""}properties on ${objectLabel}`
+                : "Choose a property…"}
+          </option>
+          {properties.map((p) => (
+            <option key={p.value} value={p.value}>
+              {p.label}
+              {p.unit ? ` (${unitLabel(p.unit)})` : ""}
+            </option>
+          ))}
+        </select>
+        {field.display && object === field.value.object && (
+          <span className="muted text-[11px]" data-testid={`display-${field.id}`}>
+            Now {field.display}
+          </span>
+        )}
+      </span>
     </div>
   );
 }

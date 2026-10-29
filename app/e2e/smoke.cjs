@@ -8,7 +8,8 @@
 // Opens the Cavett problem, solves it, colours streams by temperature and inspects a stream;
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
-// auto-solve brings the product to 80 °C.
+// auto-solve brings the product to 80 °C. Last, opens the extractive distillation sample, changes
+// a column's reflux ratio in its editor and checks that the column re-solves.
 
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -121,6 +122,36 @@ async function main() {
   await page.locator(`[data-testid="node-${heater}"]`).click();
   await editor.getByTestId("dof").waitFor();
   await shot("new-flowsheet");
+
+  // A rigorous column: change the reflux ratio in its editor; auto-solve re-solves the column
+  // and the condenser duty and stage profile follow.
+  await page.goto(base);
+  await page.getByText("Engine ready").waitFor({ timeout: 120_000 });
+  await page.getByRole("button", { name: "Extractive Distillation" }).click();
+  const column = page.locator('[data-testid^="node-"]', { hasText: "Methanol Column (1 atm)" });
+  await column.waitFor({ timeout: 60_000 });
+  await page.getByTestId("solve").click();
+  await page
+    .getByText("The flowsheet was calculated successfully", { exact: false })
+    .waitFor({ timeout: 180_000 });
+  await column.click();
+  const columnEditor = page.getByTestId("schema-editor");
+  await columnEditor.getByTestId("table-column:profile").waitFor({ timeout: 30_000 });
+  await columnEditor.getByTestId("chart-column:profile").waitFor();
+  const duty = columnEditor.locator(".schema-row", { hasText: "Condenser Duty" }).locator(".readonly");
+  const dutyBefore = await duty.innerText();
+  const condenser = columnEditor.getByTestId("section-condenser");
+  assert.equal(await condenser.getByLabel("Specification", { exact: true }).inputValue(), "7");
+  const reflux = condenser.getByLabel("Specification value", { exact: true });
+  await reflux.fill("4");
+  await reflux.press("Enter");
+  for (let waited = 0; (await duty.innerText()) === dutyBefore; waited += 1000) {
+    assert.ok(waited < 180_000, "the column did not re-solve");
+    await page.waitForTimeout(1000);
+  }
+  assert.notEqual(await duty.innerText(), dutyBefore);
+  assert.equal(await reflux.inputValue(), "4");
+  await shot("column");
 
   if (errors.length) console.error("console errors:", JSON.stringify(errors, null, 1));
   assert.deepEqual(errors, []);

@@ -192,6 +192,8 @@ interface FieldBase {
 export interface NumberField extends FieldBase {
   kind: "number";
   value: number | null;
+  /** What the last solution reached, when it differs in meaning from the specified value. */
+  calculated?: number | null;
   /** In the flowsheet's unit system; null for a dimensionless value. */
   unit: string | null;
   /** Other units of the same kind the value may be entered in. */
@@ -228,12 +230,40 @@ export interface TableColumn {
 export interface TableField extends FieldBase {
   kind: "table";
   columns: TableColumn[];
+  /** A cell a row leaves out does not apply to that row. */
   rows: Record<string, string | number | null>[];
   canAddRows?: boolean;
   newRow?: Record<string, string | number | null>;
+  /** Results: no editing, no Apply. */
+  readOnly?: boolean;
+  /** Plot these numeric columns against column `x`, one panel per unit. */
+  chart?: { x: string; series: string[] };
 }
 
-export type SchemaField = NumberField | TextField | BoolField | ChoiceField | TableField;
+/** An object on the flowsheet and one of its properties, picked in two steps. */
+export interface VariableField extends FieldBase {
+  kind: "variable";
+  value: { object: string | null; property: string | null };
+  objects: ChoiceOption[];
+  /** The properties of the picked object; another object's come from object.variables. */
+  properties: VariableOption[];
+  /** The variable's current value with its unit. */
+  display: string | null;
+  /** Only properties the block may write qualify. */
+  writable: boolean;
+}
+
+export interface VariableOption extends ChoiceOption {
+  unit: string | null;
+}
+
+/** A command, sent as setField(id, true). */
+export interface ActionField extends FieldBase {
+  kind: "action";
+}
+
+export type SchemaField =
+  NumberField | TextField | BoolField | ChoiceField | TableField | VariableField | ActionField;
 
 export interface SchemaSection {
   id: string;

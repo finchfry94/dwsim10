@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatNumber, formatQuantity, fromSI, toSI, unitsOf } from "./units";
+import { formatNumber, formatQuantity, fromSI, toSI, unitLabel, unitsOf } from "./units";
 
 describe("fromSI", () => {
   it("converts temperatures with an offset", () => {
@@ -50,5 +50,15 @@ describe("formatting", () => {
 
   it("formats a quantity with its unit", () => {
     expect(formatQuantity("temperature", 300, "C")).toBe("26.85 °C");
+  });
+});
+
+describe("unitLabel", () => {
+  it("marks degrees and temperature differences", () => {
+    expect(unitLabel("C")).toBe("°C");
+    expect(unitLabel("K")).toBe("K");
+    expect(unitLabel("C.")).toBe("Δ°C");
+    expect(unitLabel("K.")).toBe("ΔK");
+    expect(unitLabel("kW")).toBe("kW");
   });
 });

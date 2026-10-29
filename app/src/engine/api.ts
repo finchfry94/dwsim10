@@ -13,6 +13,7 @@ import type {
   StreamDetails,
   StreamSpecification,
   UnitSystem,
+  VariableOption,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -73,6 +74,8 @@ export const engine = {
   schema: (flowsheetId: string, id: string) => call<EditorSchema>("object.schema", { flowsheetId, id }),
   setField: (flowsheetId: string, id: string, field: string, value: unknown, unit?: string | null) =>
     call<EditorSchema>("object.setField", { flowsheetId, id, field, value, unit: unit ?? undefined }),
+  variables: (flowsheetId: string, id: string, writable: boolean) =>
+    call<VariableOption[]>("object.variables", { flowsheetId, id, writable }),
   setMode: (flowsheetId: string, id: string, value: string) =>
     call<EditorSchema>("object.setMode", { flowsheetId, id, value }),
   convertUnits: (value: number, from: string, to: string) =>

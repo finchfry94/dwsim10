@@ -26,6 +26,10 @@
   --grid-dot: #c9cfd8;
   --minimap-node: #b8c1cf;
   --selection: #2563eb;
+  /* chart series, validated for colour-vision deficiency on --surface */
+  --chart-1: #2f6fde;
+  --chart-2: #e4572e;
+  --chart-3: #1baf7a;
 
   color-scheme: light;
 }
@@ -55,6 +59,9 @@
   --grid-dot: #2b3240;
   --minimap-node: #3b4555;
   --selection: #7aa2ff;
+  --chart-1: #4f86f0;
+  --chart-2: #ec6236;
+  --chart-3: #199e70;
 
   color-scheme: dark;
 }
@@ -1170,4 +1177,112 @@ body {
   margin-left: 6px;
   color: var(--text);
   font-size: 12px;
+}
+
+/* Variable pickers and result tables (column profiles) */
+.schema-row-stack {
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+.variable-picker {
+  display: grid;
+  gap: 4px;
+}
+.calculated-note {
+  display: block;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.table-scroll-tall {
+  max-height: 260px;
+  overflow: auto;
+}
+.profile-charts {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.profile-chart {
+  margin: 0;
+  position: relative;
+}
+.profile-chart-title {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.profile-legend {
+  display: inline-flex;
+  gap: 10px;
+}
+.profile-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.profile-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+}
+.profile-plot {
+  position: relative;
+}
+.profile-plot svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-crosshair {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.chart-tick,
+.chart-label {
+  font-size: 9px;
+  fill: var(--text-muted);
+}
+.chart-label {
+  fill: var(--text);
+}
+.chart-axis-title {
+  text-align: center;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.chart-tooltip {
+  position: absolute;
+  top: 4px;
+  pointer-events: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  white-space: nowrap;
+  z-index: 2;
+}
+.chart-tooltip-title {
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.chart-tooltip-row {
+  display: grid;
+  grid-template-columns: 10px auto auto;
+  align-items: center;
+  gap: 6px;
+}
+.chart-tooltip-row .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }

@@ -77,7 +77,11 @@ export function toSI(quantity: Quantity, value: number, unit: string | undefined
 }
 
 /** Shown name of a unit: DWSIM writes Celsius and Fahrenheit as C and F. */
-export const unitLabel = (unit: string) => (unit === "C" || unit === "F" ? `°${unit}` : unit);
+/** A unit as shown; the engine spells a temperature difference with a trailing dot ("C."). */
+export const unitLabel = (unit: string): string => {
+  if (/^[KCFR]\.$/.test(unit)) return `Δ${unitLabel(unit.slice(0, -1))}`;
+  return unit === "C" || unit === "F" ? `°${unit}` : unit;
+};
 
 /** Converts an SI value; falls back to SI when the unit is unknown. */
 export function fromSI(

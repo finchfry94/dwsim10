@@ -77,6 +77,7 @@ const engine = vi.hoisted(() => ({
   convertUnits: vi.fn(),
   connect: vi.fn(),
   disconnect: vi.fn(),
+  variables: vi.fn(),
 }));
 vi.mock("../engine/api", () => ({ engine }));
 
@@ -139,5 +140,105 @@ describe("SchemaEditor", () => {
     render(<SchemaEditor flowsheetId="F" id="HT-1" />);
     fireEvent.change(await screen.findByLabelText("Connect Outlet"), { target: { value: "S2" } });
     await waitFor(() => expect(engine.connect).toHaveBeenCalledWith("F", "HT-1", "out-0", "S2", "in-0"));
+  });
+});
+
+const adjust = (): EditorSchema => ({
+  id: "ADJ-1",
+  tag: "ADJ-1",
+  type: "OT_Adjust",
+  calculated: false,
+  error: null,
+  mode: null,
+  dof: null,
+  connections: [],
+  sections: [
+    {
+      id: "variables",
+      title: "Variables",
+      fields: [
+        {
+          id: "variable:manipulated",
+          label: "Manipulated variable",
+          kind: "variable",
+          editable: true,
+          missing: true,
+          writable: true,
+          value: { object: null, property: null },
+          objects: [
+            { value: "HT-1", label: "Heater" },
+            { value: "S2", label: "product" },
+          ],
+          properties: [],
+          display: null,
+        },
+        { id: "column:readEstimates", label: "Read estimates", kind: "action", editable: true },
+      ],
+    },
+    {
+      id: "profiles",
+      title: "Profiles",
+      fields: [
+        {
+          id: "column:profile",
+          label: "Stage profile",
+          kind: "table",
+          editable: false,
+          readOnly: true,
+          chart: { x: "stage", series: ["temperature", "liquid", "vapor"] },
+          columns: [
+            { key: "stage", label: "Stage", kind: "text", editable: false },
+            { key: "temperature", label: "T", kind: "number", unit: "K", editable: false },
+            { key: "liquid", label: "L", kind: "number", unit: "mol/s", editable: false },
+            { key: "vapor", label: "V", kind: "number", unit: "mol/s", editable: false },
+          ],
+          rows: [
+            { stage: "Stage1 (Condenser)", temperature: 351.5, liquid: 50, vapor: 0 },
+            { stage: "Stage2", temperature: 352.1, liquid: 49, vapor: 75 },
+            { stage: "Stage3 (Reboiler)", temperature: 353.7, liquid: 75, vapor: 74 },
+          ],
+        },
+      ],
+    },
+  ],
+});
+
+describe("SchemaEditor – logical blocks and results", () => {
+  it("loads the picked object's properties, then sends object and property together", async () => {
+    engine.schema.mockResolvedValue(adjust());
+    engine.variables.mockResolvedValue([{ value: "PROP_HT_3", label: "Heat Added", unit: "kW" }]);
+    engine.setField.mockResolvedValue(adjust());
+    render(<SchemaEditor flowsheetId="F" id="ADJ-1" />);
+    const property = (await screen.findByLabelText("Manipulated variable property")) as HTMLSelectElement;
+    expect(property.disabled).toBe(true);
+    await act(async () => {
+      fireEvent.change(screen.getByLabelText("Manipulated variable object"), { target: { value: "HT-1" } });
+    });
+    expect(engine.variables).toHaveBeenCalledWith("F", "HT-1", true);
+    await waitFor(() => expect(property.disabled).toBe(false));
+    fireEvent.change(property, { target: { value: "PROP_HT_3" } });
+    await waitFor(() =>
+      expect(engine.setField).toHaveBeenCalledWith(
+        "F",
+        "ADJ-1",
+        "variable:manipulated",
+        { object: "HT-1", property: "PROP_HT_3" },
+        undefined,
+      ),
+    );
+  });
+
+  it("runs an action and shows a results table with its chart and no Apply", async () => {
+    engine.schema.mockResolvedValue(adjust());
+    engine.setField.mockResolvedValue(adjust());
+    render(<SchemaEditor flowsheetId="F" id="ADJ-1" />);
+    fireEvent.click(await screen.findByTestId("action-column:readEstimates"));
+    await waitFor(() =>
+      expect(engine.setField).toHaveBeenCalledWith("F", "ADJ-1", "column:readEstimates", true, undefined),
+    );
+    expect(screen.queryByTestId("apply-column:profile")).toBeNull();
+    // one panel per unit: temperature alone, liquid and vapor flows together
+    expect(screen.getByTestId("chart-column:profile").querySelectorAll("figure")).toHaveLength(2);
+    expect(screen.getByText("351.5")).toBeTruthy();
   });
 });

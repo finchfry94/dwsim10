@@ -200,15 +200,20 @@ namespace DWSIM.Bridge.Editors
             foreach (var si in column.MaterialStreams.Values)
             {
                 fs.SimulationObjects.TryGetValue(si.StreamID ?? "", out var stream);
-                rows.Add(new JObject
+                var row = new JObject
                 {
                     ["key"] = si.ID,
                     ["stream"] = stream?.GraphicObject?.Tag ?? si.StreamID,
                     ["role"] = Roles.TryGetValue(si.StreamBehavior, out var r) ? r : si.StreamBehavior.ToString(),
-                    ["stage"] = si.AssociatedStage,
-                    ["phase"] = si.StreamBehavior == StreamInformation.Behavior.Sidedraw ? si.StreamPhase.ToString() : null,
-                    ["flow"] = si.StreamBehavior == StreamInformation.Behavior.Sidedraw ? si.FlowRate?.Value : null
-                });
+                    ["stage"] = si.AssociatedStage
+                };
+                // Only a side draw has a phase and a flow; other rows leave the cells out.
+                if (si.StreamBehavior == StreamInformation.Behavior.Sidedraw)
+                {
+                    row["phase"] = si.StreamPhase.ToString();
+                    row["flow"] = si.FlowRate?.Value;
+                }
+                rows.Add(row);
             }
             return new JObject
             {
