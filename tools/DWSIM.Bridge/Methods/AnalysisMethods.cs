@@ -159,6 +159,74 @@ namespace DWSIM.Bridge.Methods
             }
         }
 
+        // ------------------------------------------------------------------ Excel
+
+        /// <summary>
+        /// The results as an Excel workbook (EPPlus, already an engine dependency): a Streams sheet
+        /// laid out as the stream table, and an Objects sheet with every object's properties as
+        /// the report lists them. Returns the file as base64.
+        /// </summary>
+        [RpcMethod("export.xlsx")]
+        public JObject ExportExcel(string flowsheetId)
+        {
+            var table = StreamTable(flowsheetId);
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                using (var package = new OfficeOpenXml.ExcelPackage())
+                {
+                    var streams = package.Workbook.Worksheets.Add("Streams");
+                    var ids = table["streams"].Select(s => s.Value<string>("id")).ToList();
+                    streams.Cells[1, 1].Value = "Property";
+                    streams.Cells[1, 2].Value = "Unit";
+                    for (int j = 0; j < ids.Count; j++) streams.Cells[1, j + 3].Value = table["streams"][j].Value<string>("tag");
+                    int row = 2;
+                    foreach (var r in table["rows"])
+                    {
+                        streams.Cells[row, 1].Value = r.Value<string>("label");
+                        streams.Cells[row, 2].Value = r.Value<string>("unit");
+                        for (int j = 0; j < ids.Count; j++)
+                        {
+                            var v = r["values"][ids[j]];
+                            if (v != null && v.Type != JTokenType.Null) streams.Cells[row, j + 3].Value = v.Value<double>();
+                        }
+                        row++;
+                    }
+                    streams.Cells[1, 1, 1, ids.Count + 2].Style.Font.Bold = true;
+                    streams.View.FreezePanes(2, 3);
+                    // Fixed widths: EPPlus 4.5 measures text through Windows GDI, which Linux and macOS lack.
+                    streams.Column(1).Width = 26;
+                    streams.Column(2).Width = 12;
+                    for (int j = 0; j < ids.Count; j++) streams.Column(j + 3).Width = 14;
+
+                    var objects = package.Workbook.Worksheets.Add("Objects");
+                    var dt = new DWSIM.SharedClasses.Reports.SimulationReportBuilder(session.Inner).BuildDataTable();
+                    var headers = new[] { "Object", "Type", "Property", "Value", "Unit" };
+                    for (int c = 0; c < headers.Length; c++) objects.Cells[1, c + 1].Value = headers[c];
+                    for (int i = 0; i < dt.Rows.Count; i++)
+                        for (int c = 0; c < headers.Length && c < dt.Columns.Count; c++)
+                        {
+                            var text = dt.Rows[i][c]?.ToString();
+                            // Values come formatted; keep numbers as numbers so the sheet can use them.
+                            if (c == 3 && double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+                                objects.Cells[i + 2, c + 1].Value = number;
+                            else
+                                objects.Cells[i + 2, c + 1].Value = text;
+                        }
+                    objects.Cells[1, 1, 1, headers.Length].Style.Font.Bold = true;
+                    objects.View.FreezePanes(2, 1);
+                    foreach (var (col, width) in new[] { (1, 22), (2, 18), (3, 40), (4, 16), (5, 12) }) objects.Column(col).Width = width;
+
+                    var name = session.Inner.FlowsheetOptions.SimulationName;
+                    return new JObject
+                    {
+                        ["name"] = (string.IsNullOrWhiteSpace(name) ? "flowsheet" : name) + " results.xlsx",
+                        ["base64"] = Convert.ToBase64String(package.GetAsByteArray())
+                    };
+                }
+            }
+        }
+
         // ------------------------------------------------------------------ envelopes
 
         private static readonly Dictionary<string, sc.CalculationType> Diagrams = new Dictionary<string, sc.CalculationType>(StringComparer.OrdinalIgnoreCase)

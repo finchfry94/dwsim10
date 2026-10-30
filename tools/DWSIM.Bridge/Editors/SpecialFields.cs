@@ -48,6 +48,8 @@ namespace DWSIM.Bridge.Editors
                     break;
                 case Pipe pipe:
                     yield return PipeProfile(fs, pipe);
+                    var results = PipeResultsProfile(fs, pipe);
+                    if (results != null) yield return results;
                     break;
                 case ShortcutColumn column:
                     yield return new Section
@@ -303,6 +305,87 @@ namespace DWSIM.Bridge.Editors
                 ("PVC+PFRV", "PVC+PFRV"),
                 (Raw("CommercialCopper"), Shown("CommercialCopper", "Commercial Copper")),
                 ("UserDefined", Shown("UserDefined", "User Defined"))
+            };
+        }
+
+        /// <summary>
+        /// The solved pipe along its length (pressure, temperature, velocities, holdup), point by
+        /// point as the Avalonia PipeProfilesViewer collects them, with the outlet as the last point.
+        /// Null before the pipe is solved.
+        /// </summary>
+        private static Section PipeResultsProfile(IFlowsheet fs, Pipe pipe)
+        {
+            if (pipe.Profile == null || !pipe.Calculated) return null;
+            var su = fs.FlowsheetOptions.SelectedUnitSystem;
+            var rows = new JArray();
+            double length = 0.0;
+            JObject last = null;
+            JToken V(string unit, double? si) => si.HasValue && !double.IsNaN(si.Value) && !double.IsInfinity(si.Value)
+                ? (JToken)(string.IsNullOrEmpty(unit) ? si.Value : Converter.ConvertFromSI(unit, si.Value)) : JValue.CreateNull();
+            foreach (var ps in pipe.Profile.Sections.Values)
+            {
+                if (ps.Results == null) continue;
+                var straight = ps.TipoSegmento == "Tubulaosimples" || ps.TipoSegmento == "Straight Tube Section";
+                var step = straight && ps.Incrementos > 0 ? ps.Comprimento / ps.Incrementos : 0.0;
+                var start = length;
+                int k = 0;
+                foreach (PipeResults res in ps.Results)
+                {
+                    last = new JObject
+                    {
+                        ["length"] = V(su.distance, start + Math.Min(k, Math.Max(ps.Incrementos, 0)) * step),
+                        ["pressure"] = V(su.pressure, res.Pressure_Initial),
+                        ["temperature"] = V(su.temperature, res.Temperature_Initial),
+                        ["liquidVelocity"] = V(su.velocity, res.LiqVel),
+                        ["vaporVelocity"] = V(su.velocity, res.VapVel),
+                        ["holdup"] = V(null, res.LiquidHoldup),
+                        ["regime"] = res.FlowRegime ?? ""
+                    };
+                    rows.Add(last);
+                    k++;
+                }
+                length = start + (straight ? ps.Comprimento : 0.0);
+            }
+            if (rows.Count == 0) return null;
+            // The increments carry their inlet state; the outlet stream closes the profile.
+            var cp = pipe.GraphicObject?.OutputConnectors.FirstOrDefault();
+            if (cp != null && cp.IsAttached && fs.SimulationObjects.TryGetValue(cp.AttachedConnector.AttachedTo.Name, out var o)
+                && o is IMaterialStream outlet && last.Value<double?>("length") < Converter.ConvertFromSI(su.distance, length) - 1e-9)
+                rows.Add(new JObject
+                {
+                    ["length"] = V(su.distance, length),
+                    ["pressure"] = V(su.pressure, outlet.GetPressure()),
+                    ["temperature"] = V(su.temperature, outlet.GetTemperature()),
+                    ["liquidVelocity"] = last["liquidVelocity"],
+                    ["vaporVelocity"] = last["vaporVelocity"],
+                    ["holdup"] = last["holdup"],
+                    ["regime"] = "outlet"
+                });
+            JObject Col(string key, string label, string unit, string kind = "number") => new JObject
+            {
+                ["key"] = key, ["label"] = label, ["kind"] = kind, ["editable"] = false, ["unit"] = string.IsNullOrEmpty(unit) ? null : unit
+            };
+            return new Section
+            {
+                Id = "pipeResults",
+                Title = "Profiles",
+                Fields =
+                {
+                    new JObject
+                    {
+                        ["id"] = "table:pipeResults",
+                        ["label"] = "Along the pipe",
+                        ["kind"] = "table",
+                        ["readOnly"] = true,
+                        ["editable"] = false,
+                        ["chart"] = new JObject { ["x"] = "length", ["series"] = new JArray("pressure", "temperature", "liquidVelocity", "vaporVelocity", "holdup") },
+                        ["columns"] = new JArray(
+                            Col("length", "Length", su.distance), Col("pressure", "P", su.pressure), Col("temperature", "T", su.temperature),
+                            Col("liquidVelocity", "Liquid velocity", su.velocity), Col("vaporVelocity", "Vapor velocity", su.velocity),
+                            Col("holdup", "Liquid holdup", null), Col("regime", "Flow regime", null, "text")),
+                        ["rows"] = rows
+                    }
+                }
             };
         }
 
