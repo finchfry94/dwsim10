@@ -27,6 +27,17 @@ import type {
   OptimizerCase,
   OptimizerResult,
   ChoiceOption,
+  Script,
+  ScriptRun,
+  Sheet,
+  ScenarioComparison,
+  ScenarioSlot,
+  DynamicsState,
+  DynamicsIssue,
+  DynamicsRun,
+  DynamicsIntegrator,
+  DynamicsSchedule,
+  DynamicsEventSet,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -180,4 +191,59 @@ export const engine = {
     call<OptimizerCase[]>("optimizer.delete", { flowsheetId, index }),
   runOptimizer: (flowsheetId: string, index: number, requestId?: string) =>
     call<OptimizerResult>("optimizer.run", { flowsheetId, index }, requestId),
+
+  scripts: (flowsheetId: string) =>
+    call<{ scripts: Script[]; events: Record<string, string[]> }>("scripts.list", { flowsheetId }),
+  saveScript: (flowsheetId: string, script: Script) => call<Script>("scripts.save", { flowsheetId, script }),
+  deleteScript: (flowsheetId: string, id: string) =>
+    call<{ scripts: Script[]; events: Record<string, string[]> }>("scripts.delete", { flowsheetId, id }),
+  runScript: (flowsheetId: string, id: string) => call<ScriptRun>("scripts.run", { flowsheetId, id }),
+
+  sheet: (flowsheetId: string, sheet?: string) => call<Sheet>("spreadsheet.get", { flowsheetId, sheet }),
+  setCells: (flowsheetId: string, cells: { address: string; input: string }[], sheet?: string) =>
+    call<Sheet>("spreadsheet.set", { flowsheetId, cells, sheet }),
+  recalculateSheet: (flowsheetId: string, sheet?: string) =>
+    call<Sheet>("spreadsheet.recalculate", { flowsheetId, sheet }),
+  addSheet: (flowsheetId: string, name?: string) =>
+    call<Sheet>("spreadsheet.addSheet", { flowsheetId, name }),
+  renameSheet: (flowsheetId: string, sheet: string, name: string) =>
+    call<Sheet>("spreadsheet.renameSheet", { flowsheetId, sheet, name }),
+  deleteSheet: (flowsheetId: string, sheet: string) =>
+    call<Sheet>("spreadsheet.deleteSheet", { flowsheetId, sheet }),
+
+  scenarios: (flowsheetId: string) =>
+    call<{ A: ScenarioSlot | null; B: ScenarioSlot | null }>("scenarios.get", { flowsheetId }),
+  captureScenario: (flowsheetId: string, slot: "A" | "B", label?: string) =>
+    call<{ A: ScenarioSlot | null; B: ScenarioSlot | null }>("scenarios.capture", {
+      flowsheetId,
+      slot,
+      label,
+    }),
+  compareScenarios: (flowsheetId: string) => call<ScenarioComparison>("scenarios.compare", { flowsheetId }),
+
+  dynamics: (flowsheetId: string) => call<DynamicsState>("dynamics.get", { flowsheetId }),
+  setDynamicMode: (flowsheetId: string, enabled: boolean) =>
+    call<DynamicsState>("dynamics.setMode", { flowsheetId, enabled }),
+  dynamicsReadiness: (flowsheetId: string) => call<DynamicsIssue[]>("dynamics.readiness", { flowsheetId }),
+  applyDynamicsFixes: (flowsheetId: string, keys?: string[], values?: Record<string, number | string>) =>
+    call<{ applied: string[]; failed: string[]; remaining: DynamicsIssue[]; state: DynamicsState }>(
+      "dynamics.applyFixes",
+      { flowsheetId, keys, values },
+    ),
+  saveIntegrator: (flowsheetId: string, integrator: DynamicsIntegrator) =>
+    call<DynamicsState>("dynamics.saveIntegrator", { flowsheetId, integrator }),
+  saveSchedule: (flowsheetId: string, schedule: DynamicsSchedule) =>
+    call<DynamicsState>("dynamics.saveSchedule", { flowsheetId, schedule }),
+  saveEventSet: (flowsheetId: string, eventSet: DynamicsEventSet) =>
+    call<DynamicsState>("dynamics.saveEventSet", { flowsheetId, eventSet }),
+  deleteDynamics: (flowsheetId: string, kind: "integrator" | "schedule" | "eventSet", id: string) =>
+    call<DynamicsState>("dynamics.delete", { flowsheetId, kind, id }),
+  storeState: (flowsheetId: string, name: string) =>
+    call<DynamicsState>("dynamics.storeState", { flowsheetId, name }),
+  deleteState: (flowsheetId: string, name: string) =>
+    call<DynamicsState>("dynamics.deleteState", { flowsheetId, name }),
+  runDynamics: (flowsheetId: string, schedule?: string, requestId?: string) =>
+    call<DynamicsRun>("dynamics.run", { flowsheetId, schedule }, requestId),
+  dynamicsResults: (flowsheetId: string, integrator: string) =>
+    call<DynamicsRun>("dynamics.results", { flowsheetId, integrator }),
 };

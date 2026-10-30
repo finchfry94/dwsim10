@@ -28,7 +28,7 @@ interface AppState {
   clipboard: string | null;
   /** The latest solve.check, or null before the first. */
   findings: Finding[] | null;
-  bottomTab: "log" | "diagnostics" | "streams";
+  bottomTab: "log" | "diagnostics" | "streams" | "sheet";
   palette: boolean;
   /** The analysis dialog, on one of its tabs, for a stream when opened from one. */
   analysis: { tab: "phase" | "binary"; streamId?: string } | null;
@@ -37,7 +37,11 @@ interface AppState {
   tools: { toolId?: string; objectId?: string } | null;
   reactions: boolean;
   /** The studies dialog, on its sensitivity or optimizer tab. */
-  studies: "sensitivity" | "optimizer" | null;
+  studies: "sensitivity" | "optimizer" | "scenarios" | null;
+  scripts: boolean;
+  dynamics: boolean;
+  /** The running integration's progress, from dynamics/progress notifications. */
+  dynamicsProgress: { seconds: number; total: number | null; text: string } | null;
   /** The running study's progress, from the engine's study/progress notifications. */
   studyProgress: { done: number; total: number; text: string } | null;
   shortcuts: boolean;
@@ -91,6 +95,8 @@ interface AppState {
   openTools(tools: AppState["tools"]): void;
   openReactions(open: boolean): void;
   openStudies(tab: AppState["studies"]): void;
+  openScripts(open: boolean): void;
+  openDynamics(open: boolean): void;
   openShortcuts(open: boolean): void;
   /** True when there are no unsaved changes, or the user agrees to lose them. */
   confirmDiscard(): boolean;
@@ -270,6 +276,9 @@ export const useApp = create<AppState>((set, get) => {
     reactions: false,
     studies: null,
     studyProgress: null,
+    scripts: false,
+    dynamics: false,
+    dynamicsProgress: null,
     palette: false,
     shortcuts: false,
     recent: readRecent(),
@@ -499,6 +508,8 @@ export const useApp = create<AppState>((set, get) => {
     openTools: (tools) => set({ tools }),
     openReactions: (reactions) => set({ reactions }),
     openStudies: (studies) => set({ studies }),
+    openScripts: (scripts) => set({ scripts }),
+    openDynamics: (dynamics) => set({ dynamics }),
     openShortcuts: (shortcuts) => set({ shortcuts }),
 
     confirmDiscard() {
@@ -575,6 +586,16 @@ export function connectNotifications(): () => void {
         break;
       case "solve/finished":
         useApp.setState({ solving: false });
+        break;
+      case "dynamics/progress":
+        if (p.flowsheetId === useApp.getState().flowsheet?.id)
+          useApp.setState({
+            dynamicsProgress: {
+              seconds: Number(p.seconds),
+              total: p.total == null ? null : Number(p.total),
+              text: String(p.text ?? ""),
+            },
+          });
         break;
       case "study/progress":
         if (p.flowsheetId === useApp.getState().flowsheet?.id)

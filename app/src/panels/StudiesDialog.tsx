@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { engine } from "../engine/api";
 import { EngineError } from "../engine/transport";
 import type {
+  ScenarioComparison,
+  ScenarioSlot,
   ChoiceOption,
   OptimizerCase,
   OptimizerResult,
@@ -53,6 +55,14 @@ export function StudiesDialog() {
             >
               Optimizer
             </button>
+            <button
+              role="tab"
+              className="tab"
+              aria-selected={tab === "scenarios"}
+              onClick={() => useApp.getState().openStudies("scenarios")}
+            >
+              Scenarios
+            </button>
           </div>
           <button className="btn btn-icon btn-ghost" onClick={closeStudies} aria-label="Close">
             <X size={15} />
@@ -61,8 +71,10 @@ export function StudiesDialog() {
         <div className="studies-body">
           {tab === "sensitivity" ? (
             <Sensitivity flowsheetId={flowsheet.id} />
-          ) : (
+          ) : tab === "optimizer" ? (
             <Optimizer flowsheetId={flowsheet.id} />
+          ) : (
+            <Scenarios flowsheetId={flowsheet.id} />
           )}
         </div>
       </div>
@@ -800,6 +812,161 @@ function Optimizer({ flowsheetId }: { flowsheetId: string }) {
             ))}
           </div>
           <XYChart chart={s.result.chart} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ scenarios
+
+/**
+ * Two snapshots of the solved flowsheet side by side: capture A, change something and solve,
+ * capture B, and see what moved, the changed specifications first.
+ */
+function Scenarios({ flowsheetId }: { flowsheetId: string }) {
+  const [slots, setSlots] = useState<{ A: ScenarioSlot | null; B: ScenarioSlot | null }>({
+    A: null,
+    B: null,
+  });
+  const [labels, setLabels] = useState({ A: "A", B: "B" });
+  const [result, setResult] = useState<ScenarioComparison | null>(null);
+  const [onlyChanged, setOnlyChanged] = useState(true);
+  const [filter, setFilter] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    engine.scenarios(flowsheetId).then(setSlots, () => undefined);
+  }, [flowsheetId]);
+
+  const capture = async (slot: "A" | "B") => {
+    setError(null);
+    try {
+      const s = await engine.captureScenario(flowsheetId, slot, labels[slot]);
+      setSlots(s);
+      setResult(s.A && s.B ? await engine.compareScenarios(flowsheetId) : null);
+    } catch (e) {
+      setError(EngineError.from(e).message);
+    }
+  };
+
+  const q = filter.trim().toLowerCase();
+  const rows = (result?.rows ?? []).filter(
+    (r) => (!onlyChanged || r.changed) && (!q || `${r.object} ${r.property}`.toLowerCase().includes(q)),
+  );
+  const fmt = (v: number | string | null) => (typeof v === "number" ? formatNumber(v, 6) : (v ?? ""));
+
+  return (
+    <div className="analysis-body" data-testid="scenarios">
+      <p className="muted">
+        Solve, capture A; change something and solve again, capture B. The comparison lists the changed
+        specifications first, then the results by how much they moved. Snapshots last until the app closes.
+      </p>
+      <div className="analysis-controls">
+        {(["A", "B"] as const).map((slot) => (
+          <div key={slot} className="scenario-slot">
+            <label className="field">
+              <span className="field-label">Scenario {slot}</span>
+              <input
+                className="input"
+                value={labels[slot]}
+                onChange={(e) => setLabels({ ...labels, [slot]: e.target.value })}
+                aria-label={`Scenario ${slot} label`}
+              />
+            </label>
+            <button className="btn" onClick={() => void capture(slot)} data-testid={`capture-${slot}`}>
+              Capture {slot}
+            </button>
+            <span className="muted text-[11px]">
+              {slots[slot]
+                ? `${slots[slot]!.label}, ${new Date(slots[slot]!.taken).toLocaleTimeString()}`
+                : "not captured"}
+            </span>
+          </div>
+        ))}
+      </div>
+      {error && <p className="callout callout-error">{error}</p>}
+      {result && (
+        <div data-testid="scenario-result">
+          {result.summary.map((line, i) => (
+            <p key={i} className={i === 0 ? "tools-summary" : "muted text-[12px]"}>
+              {line}
+            </p>
+          ))}
+          <div className="flex items-center gap-2 mt-2">
+            <label className="toggle">
+              <input
+                type="checkbox"
+                checked={onlyChanged}
+                onChange={(e) => setOnlyChanged(e.target.checked)}
+              />{" "}
+              Only what changed
+            </label>
+            <input
+              className="input input-sm"
+              placeholder="filter by object or property"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Filter"
+            />
+            <span className="muted text-[12px]">{rows.length} rows</span>
+            <button
+              className="btn btn-ghost ml-auto"
+              onClick={() =>
+                downloadText(
+                  fileName(`${result.labelA} vs ${result.labelB}`, "csv"),
+                  toCsv([
+                    ["Object", "Property", "Kind", result.labelA, result.labelB, "Change", "%", "Unit"],
+                    ...rows.map((r) => [
+                      r.object,
+                      r.property,
+                      r.input ? "specification" : "result",
+                      r.a,
+                      r.b,
+                      r.delta,
+                      r.percent,
+                      r.unit,
+                    ]),
+                  ]),
+                )
+              }
+            >
+              <Download size={13} /> CSV
+            </button>
+          </div>
+          <div className="table-scroll table-scroll-tall">
+            <table className="grid-table">
+              <thead>
+                <tr>
+                  <th>Object</th>
+                  <th>Property</th>
+                  <th>{result.labelA}</th>
+                  <th>{result.labelB}</th>
+                  <th>Change</th>
+                  <th>%</th>
+                  <th>Unit</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i} className={r.input ? "is-spec" : ""}>
+                    <td>{r.object}</td>
+                    <td>
+                      {r.property}
+                      {r.input && <span className="badge"> specification</span>}
+                    </td>
+                    <td className="num">{fmt(r.a)}</td>
+                    <td className="num">{fmt(r.b)}</td>
+                    <td className="num">{r.delta === null ? "" : formatNumber(r.delta, 4)}</td>
+                    <td className="num">
+                      {r.percent === null ? "" : `${r.percent > 0 ? "+" : ""}${r.percent.toFixed(1)}`}
+                    </td>
+                    <td>{r.unit ? unitLabel(r.unit) : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

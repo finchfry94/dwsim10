@@ -1,7 +1,9 @@
 import {
+  Activity,
   Atom,
   ChartSpline,
   Command,
+  FileCode,
   FileText,
   FilePlus2,
   FlaskConical,
@@ -203,6 +205,25 @@ export function Toolbar({
           data-testid="studies"
         >
           <Target size={16} /> Studies
+        </button>
+        <button
+          className="btn"
+          onClick={() => useApp.getState().openDynamics(true)}
+          disabled={!has}
+          title="Dynamic simulation: setup, integrators, schedules, events and runs"
+          data-testid="dynamics"
+        >
+          <Activity size={16} /> Dynamics
+        </button>
+        <button
+          className="btn btn-icon"
+          onClick={() => useApp.getState().openScripts(true)}
+          disabled={!has}
+          title="Python scripts"
+          aria-label="Scripts"
+          data-testid="scripts"
+        >
+          <FileCode size={16} />
         </button>
         <button
           className="btn"

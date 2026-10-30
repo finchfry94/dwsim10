@@ -10,6 +10,8 @@ import { ReportDialog } from "./panels/ReportDialog";
 import { ToolsDialog } from "./panels/ToolsDialog";
 import { ReactionsDialog } from "./panels/ReactionsDialog";
 import { StudiesDialog } from "./panels/StudiesDialog";
+import { ScriptsDialog } from "./panels/ScriptsDialog";
+import { DynamicsDialog } from "./panels/DynamicsDialog";
 import { transport } from "./engine/transport";
 import type { SampleFile } from "./engine/types";
 import { pickFileToOpen, pickFileToSave } from "./panels/files";
@@ -92,6 +94,8 @@ export function App() {
         tools,
         reactions,
         studies,
+        scripts,
+        dynamics,
       } = useApp.getState();
       if (
         palette ||
@@ -102,6 +106,8 @@ export function App() {
         tools ||
         reactions ||
         studies ||
+        scripts ||
+        dynamics ||
         e.defaultPrevented
       )
         return; // a dialog has the keyboard
@@ -171,6 +177,8 @@ export function App() {
       <ToolsDialog />
       <ReactionsDialog />
       <StudiesDialog />
+      <ScriptsDialog />
+      <DynamicsDialog />
       <ShortcutSheet commands={commands} />
       {setup && flowsheet && <SetupDialog mode={setup} onClose={() => useApp.getState().openSetup(null)} />}
       {dialog && (

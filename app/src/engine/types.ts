@@ -529,6 +529,161 @@ export interface OptimizerResult extends OptimizerCase {
   chart: ChartData;
 }
 
+// ---------------------------------------------------------------- scripts
+
+export interface Script {
+  id?: string;
+  title: string;
+  text: string;
+  interpreter: "IronPython" | "Python_NET";
+  linked: boolean;
+  linkedTo: "Simulation" | "Solver" | "Integrator" | "FlowsheetObject";
+  linkedObject: string | null;
+  event: string;
+}
+
+export interface ScriptRun {
+  ok: boolean;
+  error: string | null;
+  output: string[];
+  durationMs: number;
+}
+
+// ---------------------------------------------------------------- spreadsheet
+
+export interface SheetCell {
+  address: string;
+  row: number;
+  col: number;
+  /** What was typed: a value, or a formula starting with "=". */
+  input: string;
+  display: string;
+  value: number | string | null;
+  error: boolean;
+}
+
+export interface Sheet {
+  sheets: string[];
+  sheet: string;
+  rows: number;
+  cols: number;
+  cells: SheetCell[];
+}
+
+// ---------------------------------------------------------------- scenarios
+
+export interface ScenarioSlot {
+  label: string;
+  taken: string;
+  values: number;
+}
+
+export interface ScenarioComparison {
+  labelA: string;
+  labelB: string;
+  inputsChanged: number;
+  outputsChanged: number;
+  unchanged: number;
+  summary: string[];
+  rows: {
+    object: string;
+    objectId: string;
+    type: string;
+    property: string;
+    unit: string;
+    input: boolean;
+    changed: boolean;
+    a: number | string | null;
+    b: number | string | null;
+    delta: number | null;
+    percent: number | null;
+  }[];
+}
+
+// ---------------------------------------------------------------- dynamics
+
+export interface DynamicsVariable extends StudyVariable {
+  id?: string;
+  name: string;
+}
+
+export interface DynamicsIntegrator {
+  id?: string;
+  name: string;
+  step: number;
+  duration: number;
+  method: string;
+  equilibriumEvery: number;
+  pressureFlowEvery: number;
+  controlEvery: number;
+  variables: DynamicsVariable[];
+  samples?: number;
+}
+
+export interface DynamicsSchedule {
+  id?: string;
+  name: string;
+  integrator: string | null;
+  useCurrentState: boolean;
+  initialState: string | null;
+  resetContents: boolean;
+  eventSet: string | null;
+}
+
+export interface DynamicsEvent extends StudyVariable {
+  id?: string;
+  name: string;
+  enabled: boolean;
+  /** Seconds from the start of the run. */
+  time: number;
+  kind: "ChangeProperty" | "RunScript";
+  value: string;
+  script: string | null;
+  transition: string;
+}
+
+export interface DynamicsEventSet {
+  id?: string;
+  name: string;
+  events: DynamicsEvent[];
+}
+
+export interface DynamicsState {
+  enabled: boolean;
+  currentSchedule: string | null;
+  integrators: DynamicsIntegrator[];
+  schedules: DynamicsSchedule[];
+  eventSets: DynamicsEventSet[];
+  states: string[];
+  scripts: ChoiceOption[];
+}
+
+export interface DynamicsIssue {
+  key: string;
+  code: string;
+  severity: "Info" | "Warning" | "Blocker" | string;
+  category: string;
+  object: string | null;
+  tag: string | null;
+  message: string;
+  fix: string | null;
+  canFix: boolean;
+  valueLabel: string | null;
+  suggested: number | string | null;
+  unit: string | null;
+}
+
+export interface DynamicsRun {
+  integrator: string;
+  samples: number;
+  charts: ChartData[];
+  table: { columns: string[]; rows: (number | null)[][] };
+  cancelled?: boolean;
+  errors?: string[];
+  steps?: number;
+  durationMs?: number;
+}
+
 export interface StreamTable {
   streams: { id: string; tag: string; calculated: boolean }[];
   rows: {

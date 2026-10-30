@@ -2,6 +2,7 @@ import { AlertCircle, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { Finding } from "../engine/types";
 import { useApp } from "../state/store";
+import { SpreadsheetPanel } from "./SpreadsheetPanel";
 import { StreamTablePanel } from "./StreamTablePanel";
 
 /** The bottom panel: the engine's log, and the findings of the last flowsheet check. */
@@ -11,7 +12,7 @@ export function LogPanel() {
   const setTab = useApp((s) => s.setBottomTab);
   const problems = findings?.filter((f) => f.severity !== "info").length ?? 0;
   return (
-    <section className="panel log" aria-label="Log, diagnostics and streams">
+    <section className="panel log" aria-label="Log, diagnostics, streams and spreadsheet">
       <div className="panel-header">
         <div className="tabs" role="tablist">
           <button
@@ -42,6 +43,15 @@ export function LogPanel() {
           >
             Streams
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "sheet"}
+            className="tab"
+            onClick={() => setTab("sheet")}
+            data-testid="tab-sheet"
+          >
+            Spreadsheet
+          </button>
         </div>
         {tab === "log" ? <LogActions /> : tab === "diagnostics" ? <CheckAction /> : null}
       </div>
@@ -49,8 +59,10 @@ export function LogPanel() {
         <LogLines />
       ) : tab === "diagnostics" ? (
         <Findings findings={findings} />
-      ) : (
+      ) : tab === "streams" ? (
         <StreamTablePanel />
+      ) : (
+        <SpreadsheetPanel />
       )}
     </section>
   );
