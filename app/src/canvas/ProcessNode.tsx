@@ -1,5 +1,5 @@
-import { Handle, Position, useStore, type Node, type NodeProps } from "@xyflow/react";
-import { memo } from "react";
+import { Handle, Position, useStore, useUpdateNodeInternals, type Node, type NodeProps } from "@xyflow/react";
+import { memo, useEffect } from "react";
 import type { GraphNode, Port } from "../engine/types";
 import { formatQuantity } from "../lib/units";
 import { ProcessSymbol } from "./symbols";
@@ -40,9 +40,15 @@ const statusClass: Record<string, string> = {
 
 const zoomSelector = (s: { transform: [number, number, number] }) => s.transform[2];
 
-function ProcessNodeView({ data, selected }: NodeProps<ProcessFlowNode>) {
+function ProcessNodeView({ id, data, selected }: NodeProps<ProcessFlowNode>) {
   const { object: o, color, showTag, units } = data;
   const zoom = useStore(zoomSelector);
+  // React Flow measures the handles once, when the node's size changes; ports that change at the
+  // same size (a refresh, a rotation) would leave a connection drag starting from no handle.
+  const updateNodeInternals = useUpdateNodeInternals();
+  const portKey =
+    o.ports.map((p) => `${p.id}:${p.x}:${p.y}`).join("|") + `|${o.rotation}|${o.flippedH}|${o.flippedV}`;
+  useEffect(() => updateNodeInternals(id), [id, portKey, updateNodeInternals]);
   const isStream = o.type === "MaterialStream" || o.type === "EnergyStream";
   const status = o.error ? "status-error" : (statusClass[o.status] ?? "status-pending");
   const transform = [

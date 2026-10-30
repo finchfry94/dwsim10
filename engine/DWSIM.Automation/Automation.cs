@@ -89,6 +89,11 @@ namespace DWSIM.Automation
         public Dictionary<String, IPropertyPackage> AvailablePropertyPackages => _availablePropertyPackages;
 
         /// <summary>Gets the collection of available compounds, keyed by compound name.</summary>
+        /// <summary>
+        /// The compound catalogue. Each flowsheet gets its own copy: a compound a file carries or a
+        /// user creates is added to its flowsheet's catalogue, and must not appear in every other
+        /// flowsheet of the process.
+        /// </summary>
         public Dictionary<String, ICompoundConstantProperties> AvailableCompounds => _availableCompounds;
 
         private System.Resources.ResourceManager rm, prm;
@@ -451,7 +456,7 @@ namespace DWSIM.Automation
             Settings.CultureInfo = "en";
             var fsheet = new Flowsheet2(null, UIUpdHandler);
             fsheet.SupressDataLoading = true;
-            fsheet.AvailableCompounds = AvailableCompounds;
+            fsheet.AvailableCompounds = new Dictionary<string, ICompoundConstantProperties>(AvailableCompounds);
             fsheet.AvailablePropertyPackages = AvailablePropertyPackages;
             fsheet.SetResourcesManager(rm);
             fsheet.SetPropertyResourcesManager(prm);
@@ -480,7 +485,7 @@ namespace DWSIM.Automation
             Settings.CultureInfo = "en";
             var fsheet = new Flowsheet2(null, null);
             fsheet.SupressDataLoading = true;
-            fsheet.AvailableCompounds = AvailableCompounds;
+            fsheet.AvailableCompounds = new Dictionary<string, ICompoundConstantProperties>(AvailableCompounds);
             fsheet.AvailablePropertyPackages = AvailablePropertyPackages;
             fsheet.SetResourcesManager(rm);
             fsheet.SetPropertyResourcesManager(prm);
@@ -575,7 +580,7 @@ namespace DWSIM.Automation
             Settings.AutomationMode = true;
             var f = new Flowsheet2(null, null);
             f.SupressDataLoading = true;
-            f.AvailableCompounds = AvailableCompounds;
+            f.AvailableCompounds = new Dictionary<string, ICompoundConstantProperties>(AvailableCompounds);
             f.AvailablePropertyPackages = AvailablePropertyPackages;
             f.SetResourcesManager(rm);
             f.SetPropertyResourcesManager(prm);

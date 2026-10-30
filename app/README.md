@@ -62,6 +62,9 @@ don't change.
 | `dynamics.get/setMode/readiness/applyFixes` | dynamic mode, and the dynamics wizard's checks with their suggested fixes |
 | `dynamics.saveIntegrator/saveSchedule/saveEventSet/delete/storeState/deleteState` | integrators and their recorded variables, schedules, timed events, initial states |
 | `dynamics.run`, `dynamics.results` | an integration run (cancellable, `dynamics/progress`) and its recorded variables as time series |
+| `compounds.estimate`, `compounds.create` | a compound from its structure (SMILES: Joback, Lee-Kesler, Rackett) and known constants, each value with its source |
+| `petroleum.options/bulk/curve` | pseudocompounds and a stream from bulk C7+ properties or a distillation curve, with light ends |
+| `regression.models/run/apply` | binary interaction parameters fitted to VLE data (cancellable), and written into a property package |
 
 Notifications: `engine/ready`, `engine/log`, `solve/started`, `solve/finished`, `study/progress`, `dynamics/progress`. The Rust client
 adds `engine/stderr` and `engine/exited`.
@@ -137,7 +140,10 @@ saved files with their reactions and cases. `ScriptSpreadsheetScenarioTests` run
 changes the duty, spreadsheet formulas that read and write the simulation (and stay with their
 own flowsheet when two are open), and a scenario comparison. `DynamicsTests` integrates the
 VesselDepressurization sample, makes ThreePhaseSeparator ready through the suggested fixes and
-runs a feed step from a stored state.
+runs a feed step from a stored state. `M5cTests` estimates ethanol, hexane and cyclohexane from
+their structures (Joback's textbook values, and no estimate where a group is missing), creates
+a compound with given constants, characterizes a C7+ fluid and a TBP crude, and fits a kij back
+from bubble pressures made with it.
 
 Each tool is one class in `tools/DWSIM.Bridge/Tools/` that wraps the engine class its Avalonia
 window drives: it lists its inputs as schema fields (defaults from the flowsheet) and answers with
@@ -148,7 +154,7 @@ With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` driv
 to end: the Cavett problem (with its stream table, the Excel export, the hydrate and critical-point
 tools on a stream, a phase envelope and the report), a new heater flowsheet (with a reaction
 built and balanced in the reactions dialog, a sensitivity run on the heater, a script, a
-spreadsheet formula and a scenario comparison), and a short dynamic run on the three-phase
+spreadsheet formula, a scenario comparison, a compound created from "CCO" and a C7+ fluid), and a short dynamic run on the three-phase
 separator (with delete and undo, duplicate, a check from
 the command palette), a column whose reflux ratio is changed in its editor, and a cancelled solve.
 
@@ -176,8 +182,10 @@ length, and a Tools dialog: natural gas hydrates, relief valve (API 520) and sep
 vessel depressurization, true critical point, distillation curves and McCabe–Thiele. Reactions
 (all four types, reaction sets, a reactor's set picker links to them), sensitivity analysis and
 the optimizer (M5a). Scripts, the spreadsheet, scenario comparison and dynamic simulation (setup checks with fixes,
-integrators, schedules, events, stored states, runs with charts) are in too (M5b). Next:
-compound creator and importers, petroleum characterization and data regression (M5c).
+integrators, schedules, events, stored states, runs with charts) are in too (M5b). A
+compound creator (from a structure and known constants), petroleum characterization (bulk C7+
+or a distillation curve) and data regression with transfer to the property package (M5c) close
+M5. Next: polish and shipping (M6).
 
 ### How undo works
 

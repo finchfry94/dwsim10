@@ -90,6 +90,11 @@ namespace DWSIM.Bridge.Tests
             Call("stream.specify", new { flowsheetId = fs, id = s, temperature = 300.0, pressure = 1e5, molarFlow = 1.0, moleFractions = JObject.FromObject(new System.Collections.Generic.Dictionary<string, double> { ["Water"] = 0.5, ["Cyclohexane (mine)"] = 0.5 }) });
             Assert.That(Call("solve.run", new { flowsheetId = fs }).Value<bool>("ok"), Is.True);
 
+            // The compound is this flowsheet's: another flowsheet of the process does not see it.
+            var other = NewFlowsheet("Peng-Robinson (PR)", "Water");
+            Assert.That(Call("compounds.search", new { flowsheetId = other, query = "Cyclohexane (mine)" }), Is.Empty);
+            Call("flowsheet.close", new { flowsheetId = other });
+
             var dup = Assert.Throws<RpcException>(() => Call("compounds.create", new { flowsheetId = fs, compound = JObject.FromObject(new { name = "Cyclohexane (mine)", smiles = "CCO" }) }));
             Assert.That(dup.Message, Does.Contain("already"));
             Call("edit.undo", new { flowsheetId = fs }); // the stream's specification

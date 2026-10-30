@@ -11,7 +11,8 @@
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
 // auto-solve brings the product to 80 °C; builds a reaction and runs a sensitivity analysis on
-// the heater, runs a script, writes a spreadsheet formula and compares two scenarios. Then opens
+// the heater, runs a script, writes a spreadsheet formula, compares two scenarios, creates a
+// compound from its structure and characterizes a C7+ fluid. Then opens
 // the extractive distillation sample, changes a column's reflux ratio in its editor and checks
 // that the column re-solves, and cancels a solve. Last, opens the three-phase separator sample
 // and integrates it in dynamic mode. Along the way it deletes and undoes, duplicates and checks
@@ -126,20 +127,57 @@ async function main() {
   const port = (tag, id) =>
     page.locator(`.react-flow__node:has([data-testid="node-${tag}"]) [data-handleid="${id}"]`);
   let edges = 0;
-  const connect = async (from, to) => {
+  const lineSeen = [];
+  const drag = async (from, to) => {
+    // Not while a solve re-reads the flowsheet: the refresh remounts the ports under the pointer.
+    await page.getByTestId("solve").waitFor({ timeout: 60_000 });
+    await page.waitForTimeout(300);
     const a = await from.boundingBox();
     const b = await to.boundingBox();
     await page.mouse.move(a.x + a.width / 2, a.y + a.height / 2);
+    await page.waitForTimeout(100);
     await page.mouse.down();
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 });
+    // React Flow finds the handle under the pointer after the move settles; a release in the same
+    // frame (as a busy main thread allows) drops the connection on nothing.
+    await page.waitForTimeout(150);
+    lineSeen.push(await page.locator(".react-flow__connectionline").count());
     await page.mouse.up();
+    return { a, b };
+  };
+  const connect = async (from, to) => {
+    let { a, b } = await drag(from, to);
     edges += 1;
+    // A canvas refresh (a drop's, an auto-solve's) that lands mid-drag remounts the port and
+    // the drag connects nothing; one more drag settles it.
+    const made = await page
+      .waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
+        timeout: 10_000,
+      })
+      .then(() => true)
+      .catch(() => false);
+    if (!made) ({ a, b } = await drag(from, to));
     await page
       .waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
         timeout: 30_000,
       })
       .catch(async (e) => {
         await shot("connect-stuck");
+        const late = await page
+          .waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
+            timeout: 60_000,
+          })
+          .then(() => "the edge arrived late")
+          .catch(() => "no edge after another minute");
+        console.error("connect-stuck", late, "connection lines seen mid-drag", JSON.stringify(lineSeen));
+        console.error(
+          "connect-stuck log",
+          (await page.locator(".log-line").allInnerTexts())
+            .filter((l) => !/UNIQUAC|calculated successfully|being calculated/.test(l))
+            .slice(-12),
+          "console",
+          errors.slice(-5),
+        );
         console.error(
           "connect-stuck",
           JSON.stringify(a),
@@ -332,6 +370,35 @@ async function main() {
   await shot("scenarios");
   await page.keyboard.press("Escape");
   await studies.waitFor({ state: "detached" });
+
+  // Compound tools: a compound from its structure, and a C7+ fluid from its bulk properties.
+  await page.getByTestId("compound-tools").click();
+  const compoundTools = page.getByRole("dialog", { name: "Compound tools" });
+  await compoundTools.getByLabel("Compound name").fill("My ethanol");
+  await compoundTools.getByLabel("SMILES").fill("CCO");
+  await compoundTools.getByTestId("estimate-compound").click();
+  await compoundTools.getByTestId("compound-estimate").getByText("C2H6O").waitFor({ timeout: 30_000 });
+  await compoundTools.getByTestId("create-compound").click();
+  await compoundTools
+    .getByTestId("compound-added")
+    .waitFor({ timeout: 30_000 })
+    .catch(async (e) => {
+      await shot("compound-stuck");
+      console.error("compound-stuck", (await compoundTools.innerText()).slice(0, 1500));
+      throw e;
+    });
+  await compoundTools.getByRole("tab", { name: "Petroleum fluid" }).click();
+  await compoundTools.getByLabel("Assay name").fill("C7P");
+  await compoundTools.getByLabel("Pseudocompounds").fill("4");
+  await compoundTools.getByLabel("Bulk molar weight").fill("200");
+  await compoundTools.getByTestId("characterize").click();
+  const fluid = compoundTools.getByTestId("petroleum-result");
+  await fluid.waitFor({ timeout: 60_000 });
+  assert.equal(await fluid.locator("tbody tr").count(), 4);
+  await shot("compound-tools");
+  await page.keyboard.press("Escape");
+  await compoundTools.waitFor({ state: "detached" });
+  await page.locator('[data-testid="node-C7P"]').waitFor({ timeout: 30_000 });
 
   // A rigorous column: change the reflux ratio in its editor; auto-solve re-solves the column
   // and the condenser duty and stage profile follow.

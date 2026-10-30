@@ -695,7 +695,8 @@ namespace DWSIM.Automation
             // the compound and property-package catalogues and the resource managers, LoadFromXML
             // has nothing to resolve the saved objects against.
             fs.SupressDataLoading = true;
-            fs.AvailableCompounds = AvailableCompounds;
+            // A copy, as Automation3 gives each flowsheet: compounds added to one stay with it.
+            fs.AvailableCompounds = new Dictionary<string, ICompoundConstantProperties>(AvailableCompounds);
             fs.AvailablePropertyPackages = AvailablePropertyPackages;
             fs.SetResourcesManager(GetResourcesManager());
             fs.SetPropertyResourcesManager(GetPropertyResourcesManager());
