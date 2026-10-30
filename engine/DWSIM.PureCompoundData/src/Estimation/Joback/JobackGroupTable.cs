@@ -17,6 +17,22 @@ namespace DWSIM.PureCompoundData.Estimation.Joback
             public int AtomCount;
         }
 
+        /// <summary>
+        /// The names the SMILES fragmenter (ugropy's Joback subgroups) gives the groups this table
+        /// knows under another name. Without them a group the fragmenter found was skipped and the
+        /// estimate silently left it out (ethanol's -CH2-, so its Tb came out 23 K low).
+        /// </summary>
+        internal static readonly IReadOnlyDictionary<string, string> Aliases = new Dictionary<string, string>
+        {
+            ["-CH2-"] = ">CH2",
+            ["ring=CH-"] = "=CH- (ring)",
+            ["ring=C<"] = "=C< (ring)",
+        };
+
+        /// <summary>The contribution of a group by either name, or false when the table lacks the group.</summary>
+        internal static bool TryGet(string name, out Contribution contribution)
+            => Groups.TryGetValue(Aliases.TryGetValue(name, out var canonical) ? canonical : name, out contribution);
+
         internal static readonly IReadOnlyDictionary<string, Contribution> Groups =
             new Dictionary<string, Contribution>
             {

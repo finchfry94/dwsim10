@@ -23,6 +23,10 @@
     <ProjectReference Include="..\..\engine\DWSIM.Automation\DWSIM.Automation.csproj" />
     <ProjectReference Include="..\..\engine\DWSIM.FluentAPI\DWSIM.FluentAPI.csproj" />
     <ProjectReference Include="..\..\engine\DWSIM.Automation.DynamicRunner\DWSIM.Automation.DynamicRunner.csproj" />
+    <ProjectReference Include="..\..\engine\DWSIM.PureCompoundData\src\Builder\DWSIM.PureCompoundData.Builder.csproj" />
+    <ProjectReference Include="..\..\engine\DWSIM.PureCompoundData\src\Core\DWSIM.PureCompoundData.Core.csproj" />
+    <ProjectReference Include="..\..\engine\DWSIM.PureCompoundData\src\Index\DWSIM.PureCompoundData.Index.csproj" />
+    <ProjectReference Include="..\..\engine\DWSIM.SharedClasses.DataRegression\DWSIM.SharedClasses.DataRegression.vbproj" />
     <ProjectReference Include="..\..\engine\DWSIM.FlowsheetBase\DWSIM.FlowsheetBase.vbproj" />
     <ProjectReference Include="..\..\engine\DWSIM.Interfaces\DWSIM.Interfaces.vbproj" />
     <ProjectReference Include="..\..\engine\DWSIM.Thermodynamics\DWSIM.Thermodynamics.vbproj" />
@@ -44,4 +48,11 @@
     <InternalsVisibleTo Include="DWSIM.Bridge.Tests" />
   </ItemGroup>
 
+  <!-- UI-free helpers that live with the Avalonia editors; compiled in rather than copied. -->
+  <ItemGroup>
+    <Compile Include="..\..\ui\DWSIM.UI.Desktop.Editors.Avalonia\Compounds\PureCompoundImporter.cs" Link="Linked\PureCompoundImporter.cs" />
+    <Compile Include="..\..\ui\DWSIM.UI.Desktop.Editors.Avalonia\Compounds\CompoundDataChecklist.cs" Link="Linked\CompoundDataChecklist.cs" />
+    <Compile Include="..\..\ui\DWSIM.UI.Desktop.Editors.Avalonia\Compounds\GroupIdMap.cs" Link="Linked\GroupIdMap.cs" />
+    <Compile Include="..\..\ui\DWSIM.UI.Desktop.Editors.Avalonia\Compounds\DistCurveCharacterizer.cs" Link="Linked\DistCurveCharacterizer.cs" />
+  </ItemGroup>
 </Project>

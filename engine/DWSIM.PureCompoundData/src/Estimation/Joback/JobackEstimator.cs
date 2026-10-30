@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using DWSIM.PureCompoundData.Core;
@@ -33,6 +34,10 @@ namespace DWSIM.PureCompoundData.Estimation.Joback
 
         public IReadOnlyList<PropertyCategory> Requires => Array.Empty<PropertyCategory>();
 
+        /// <summary>The groups, by the fragmenter's names, that the Joback table has no contribution for.</summary>
+        public static IReadOnlyList<string> Unsupported(IEnumerable<string> groups)
+            => groups.Where(g => !JobackGroupTable.TryGet(g, out _)).ToList();
+
         public EstimationResult Estimate(CompoundInputs inputs)
         {
             var r = new EstimationResult();
@@ -43,9 +48,13 @@ namespace DWSIM.PureCompoundData.Estimation.Joback
             int totalAtoms = 0;
             bool anyKnown = false;
 
+            // A group the table lacks would leave its share out of every sum: no estimate is
+            // better than a wrong one.
+            if (Unsupported(inputs.JobackGroups.Keys).Count > 0) return r;
+
             foreach (var kv in inputs.JobackGroups)
             {
-                if (!JobackGroupTable.Groups.TryGetValue(kv.Key, out var g)) continue;
+                if (!JobackGroupTable.TryGet(kv.Key, out var g)) continue;
                 anyKnown = true;
                 int n = kv.Value;
                 totalAtoms += n * g.AtomCount;
