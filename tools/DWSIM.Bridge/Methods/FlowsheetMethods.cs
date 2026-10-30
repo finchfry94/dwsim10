@@ -46,6 +46,7 @@ namespace DWSIM.Bridge.Methods
             {
                 session.Flowsheet.Save(target, compressed);
                 session.Path = Path.GetFullPath(target);
+                session.History.Modified = false;
             }
             return new JObject { ["path"] = session.Path };
         }
@@ -73,13 +74,14 @@ namespace DWSIM.Bridge.Methods
         {
             var session = _sessions.Add(flowsheet, path);
             var id = session.Id;
-            session.Inner.SetMessageListener((text, type) =>
+            session.Attach = s => s.Inner.SetMessageListener((text, type) =>
                 _notifier.Notify("engine/log", new JObject
                 {
                     ["flowsheetId"] = id,
                     ["level"] = Level(type),
                     ["text"] = text
                 }));
+            session.Attach(session);
             lock (session.Gate) return Summary(session);
         }
 

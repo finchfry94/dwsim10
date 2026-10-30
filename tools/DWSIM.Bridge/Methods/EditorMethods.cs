@@ -70,6 +70,7 @@ namespace DWSIM.Bridge.Methods
                 var obj = session.Object(id);
                 if (value == null || value.Type == JTokenType.Null)
                     throw new RpcException(RpcErrorCodes.InvalidParams, "A value is required.");
+                var edit = session.Begin("Edit " + obj.GraphicObject?.Tag);
                 try
                 {
                     if (SpecialFields.TrySet(session.Inner, obj, field, value, unit)) { }
@@ -85,6 +86,7 @@ namespace DWSIM.Bridge.Methods
                 {
                     throw new RpcException(RpcErrorCodes.EngineError, ex.Message);
                 }
+                edit.Commit();
                 MarkChanged(obj);
                 return Build(session, obj);
             }
@@ -112,7 +114,9 @@ namespace DWSIM.Bridge.Methods
             {
                 var obj = session.Object(id);
                 var mode = ModeProperty(obj) ?? throw new RpcException(RpcErrorCodes.EngineError, obj.GraphicObject?.Tag + " has no calculation mode.");
+                var edit = session.Begin("Change mode of " + obj.GraphicObject?.Tag);
                 SetEnum(obj, mode.Name, value);
+                edit.Commit();
                 MarkChanged(obj);
                 return Build(session, obj);
             }

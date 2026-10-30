@@ -66,6 +66,7 @@ namespace DWSIM.Bridge.Methods
                 var missing = names.Where(n => !session.Inner.AvailableCompounds.ContainsKey(n)).ToList();
                 if (missing.Count > 0)
                     throw new RpcException(RpcErrorCodes.EngineError, "Not in the compound databases: " + string.Join(", ", missing));
+                session.Record("Add compounds");
                 foreach (var name in names.Where(n => !session.Inner.SelectedCompounds.ContainsKey(n)))
                 {
                     session.Flowsheet.WithCompound(name);
@@ -95,6 +96,7 @@ namespace DWSIM.Bridge.Methods
                 if (!fs.SelectedCompounds.TryGetValue(name, out var compound))
                     throw new RpcException(RpcErrorCodes.EngineError, name + " is not one of the flowsheet's compounds.");
 
+                session.Record("Remove " + name);
                 // SelectedCompounds is a re-ordered copy under some orderings; remove through the options.
                 if (fs.FlowsheetOptions is DWSIM.SharedClasses.DWSIM.Flowsheet.FlowsheetVariables options)
                 {
@@ -145,6 +147,7 @@ namespace DWSIM.Bridge.Methods
                 if (fs.PropertyPackages.Count == 1 && fs.SimulationObjects.Count > 0)
                     throw new RpcException(RpcErrorCodes.EngineError,
                         "This is the flowsheet's only property package and its objects need one; add another first.");
+                session.Record("Remove property package");
                 fs.PropertyPackages.Remove(id);
                 return FlowsheetMethods.Summary(session);
             }
@@ -172,6 +175,7 @@ namespace DWSIM.Bridge.Methods
             {
                 var system = session.Inner.AvailableSystemsOfUnits.FirstOrDefault(u => u.Name == name);
                 if (system == null) throw new RpcException(RpcErrorCodes.EngineError, "No system of units named '" + name + "'.");
+                session.Record("Change units");
                 session.Inner.FlowsheetOptions.SelectedUnitSystem = system;
                 return FlowsheetMethods.Summary(session);
             }
@@ -197,6 +201,7 @@ namespace DWSIM.Bridge.Methods
             {
                 if (!session.Flowsheet.AvailablePropertyPackages.Contains(name))
                     throw new RpcException(RpcErrorCodes.EngineError, "No property package named '" + name + "'.");
+                session.Record("Add " + name);
                 try
                 {
                     session.Flowsheet.WithPropertyPackage(name, pp =>
@@ -241,6 +246,10 @@ namespace DWSIM.Bridge.Methods
                 throw new RpcException(RpcErrorCodes.InvalidParams, "Give the composition one way only: compound molar flows, compound mass flows, mole fractions or mass fractions.");
             if (molarFlow.HasValue && massFlow.HasValue)
                 throw new RpcException(RpcErrorCodes.InvalidParams, "Give the total flow as a molar flow or a mass flow, not both.");
+            if (vaporFraction < 0 || vaporFraction > 1)
+                throw new RpcException(RpcErrorCodes.InvalidParams, "The vapor fraction must be between 0 and 1.");
+            if ((moleFractions ?? massFractions)?.Values.Sum(v => Math.Max(v, 0.0)) <= 0)
+                throw new RpcException(RpcErrorCodes.InvalidParams, "The fractions add up to zero.");
             var session = _sessions.Get(flowsheetId);
             lock (session.Gate)
             {
@@ -251,6 +260,7 @@ namespace DWSIM.Bridge.Methods
                     if (!session.Inner.SelectedCompounds.ContainsKey(c))
                         throw new RpcException(RpcErrorCodes.EngineError, c + " is not one of the flowsheet's compounds.");
 
+                session.Record("Specify " + ms.GraphicObject.Tag);
                 // The same order the validation cases and the fluent API use: state, total flow,
                 // compound flows (which fix the total when given), then the vapor fraction spec.
                 // Fractions go the other way: composition first, then the total flow scales it.

@@ -41,7 +41,7 @@ namespace DWSIM.Bridge.Methods
                     foreach (var edge in Edges(go))
                         if (seen.Add(edge.Value<string>("id"))) edges.Add(edge);
                 }
-                return new JObject { ["nodes"] = nodes, ["edges"] = edges };
+                return new JObject { ["nodes"] = nodes, ["edges"] = edges, ["history"] = session.History.ToJson() };
             }
         }
 
@@ -53,6 +53,7 @@ namespace DWSIM.Bridge.Methods
             var session = _sessions.Get(flowsheetId);
             lock (session.Gate)
             {
+                session.Record("Add " + type);
                 var obj = session.Inner.AddObject(objectType, (int)Math.Round(x), (int)Math.Round(y), tag ?? "");
                 if (obj == null) throw new RpcException(RpcErrorCodes.EngineError, "The engine could not add a " + type + ".");
                 // The app has no adjust control panel: a new adjust converges with the flowsheet.
@@ -68,6 +69,7 @@ namespace DWSIM.Bridge.Methods
             lock (session.Gate)
             {
                 var obj = session.Object(id);
+                session.Record("Move " + obj.GraphicObject.Tag);
                 obj.GraphicObject.X = (float)x;
                 obj.GraphicObject.Y = (float)y;
                 return Node(obj);
@@ -85,9 +87,24 @@ namespace DWSIM.Bridge.Methods
                 var target = session.Object(targetId).GraphicObject;
                 var from = PortIndex(sourcePort, "out");
                 var to = PortIndex(targetPort, "in");
+                var edit = session.Begin("Connect " + source.Tag + " to " + target.Tag);
                 try
                 {
-                    session.Inner.ConnectObjects(source, target, from, to);
+                    if (!IsStream(source) && !IsStream(target))
+                    {
+                        // Two unit operations meet through a stream, as in DWSIM itself: insert one
+                        // between them, energy when either port carries energy.
+                        var energy = sourcePort == "energy" || (from >= 0 && from < source.OutputConnectors.Count && source.OutputConnectors[from].Type == ConType.ConEn)
+                                     || (to >= 0 && to < target.InputConnectors.Count && target.InputConnectors[to].Type == ConType.ConEn);
+                        var (sx, sy) = PortPoint(source, sourcePort);
+                        var (tx, ty) = PortPoint(target, targetPort);
+                        var stream = session.Inner.AddObject(energy ? ObjectType.EnergyStream : ObjectType.MaterialStream,
+                            (int)Math.Round((sx + tx) / 2 - 10), (int)Math.Round((sy + ty) / 2 - 10), "");
+                        session.Inner.ConnectObjects(source, stream.GraphicObject, from, 0);
+                        session.Inner.ConnectObjects(stream.GraphicObject, target, 0, to);
+                    }
+                    else
+                        session.Inner.ConnectObjects(source, target, from, to);
                     // A stream wired to a rigorous column gets a stage, so the column solves as drawn.
                     foreach (var end in new[] { sourceId, targetId })
                         if (session.Object(end) is DWSIM.UnitOperations.UnitOperations.Column column)
@@ -97,8 +114,210 @@ namespace DWSIM.Bridge.Methods
                 {
                     throw new RpcException(RpcErrorCodes.EngineError, ex.Message);
                 }
+                edit.Commit();
                 return Get(flowsheetId);
             }
+        }
+
+        /// <summary>Moves several objects at once, as one undo step.</summary>
+        [RpcMethod("graph.moveMany")]
+        public JObject MoveMany(string flowsheetId, JArray moves)
+        {
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                var targets = (moves ?? new JArray()).Select(m => (obj: session.Object(m.Value<string>("id")), x: m.Value<double>("x"), y: m.Value<double>("y"))).ToList();
+                if (targets.Count == 0) return Get(flowsheetId);
+                session.Record(targets.Count == 1 ? "Move " + targets[0].obj.GraphicObject.Tag : $"Move {targets.Count} objects");
+                foreach (var (obj, x, y) in targets)
+                {
+                    obj.GraphicObject.X = (float)x;
+                    obj.GraphicObject.Y = (float)y;
+                }
+                return Get(flowsheetId);
+            }
+        }
+
+        /// <summary>Deletes several objects at once, as one undo step.</summary>
+        [RpcMethod("graph.deleteMany")]
+        public JObject DeleteMany(string flowsheetId, string[] ids)
+        {
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                var graphics = (ids ?? Array.Empty<string>()).Select(id => session.Object(id).GraphicObject).Distinct().ToList();
+                if (graphics.Count == 0) return Get(flowsheetId);
+                session.Record(graphics.Count == 1 ? "Delete " + graphics[0].Tag : $"Delete {graphics.Count} objects");
+                foreach (var go in graphics)
+                    if (session.Inner.SimulationObjects.ContainsKey(go.Name))
+                        session.Inner.DeleteSelectedObject(null, EventArgs.Empty, go, false, false);
+                return Get(flowsheetId);
+            }
+        }
+
+        /// <summary>
+        /// Rotates objects by <paramref name="rotate"/> degrees (a multiple of 90) and flips them
+        /// horizontally or vertically; the ports follow.
+        /// </summary>
+        [RpcMethod("graph.transform")]
+        public JObject Transform(string flowsheetId, string[] ids, int rotate = 0, bool flipH = false, bool flipV = false)
+        {
+            if (rotate % 90 != 0) throw new RpcException(RpcErrorCodes.InvalidParams, "Rotate by a multiple of 90 degrees.");
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                var graphics = (ids ?? Array.Empty<string>()).Select(id => session.Object(id).GraphicObject).ToList();
+                if (graphics.Count == 0) return Get(flowsheetId);
+                session.Record(rotate != 0 ? "Rotate" : "Flip");
+                foreach (var go in graphics)
+                {
+                    go.Rotation = ((go.Rotation + rotate) % 360 + 360) % 360;
+                    if (flipH) go.FlippedH = !go.FlippedH;
+                    if (flipV) go.FlippedV = !go.FlippedV;
+                }
+                return Get(flowsheetId);
+            }
+        }
+
+        /// <summary>
+        /// The objects as the engine's clipboard XML (CopyObjects), to paste here or into another
+        /// flowsheet: the objects, their property packages and the compounds.
+        /// </summary>
+        [RpcMethod("graph.copy")]
+        public JObject Copy(string flowsheetId, string[] ids)
+        {
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                var chosen = new HashSet<string>((ids ?? Array.Empty<string>()).Select(id => session.Object(id).Name));
+                if (chosen.Count == 0) throw new RpcException(RpcErrorCodes.InvalidParams, "Select something to copy.");
+                var flowsheet = Base(session);
+                foreach (var obj in session.Inner.SimulationObjects.Values)
+                    if (obj.GraphicObject != null) obj.GraphicObject.Selected = chosen.Contains(obj.Name);
+                try
+                {
+                    flowsheet.CopyObjects();
+                    return new JObject { ["text"] = DWSIM.SharedClasses.SystemClipboard.GetText(), ["count"] = chosen.Count };
+                }
+                finally
+                {
+                    foreach (var obj in session.Inner.SimulationObjects.Values)
+                        if (obj.GraphicObject != null) obj.GraphicObject.Selected = false;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Pastes what <c>graph.copy</c> returned, offset from the originals. Connections among the
+        /// pasted objects are kept. The engine pastes a copy of each property package too; a copy
+        /// of a package this flowsheet still has is folded back into it.
+        /// </summary>
+        [RpcMethod("graph.paste")]
+        public JObject Paste(string flowsheetId, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text) || !text.Contains("DWSIM_Simulation_Data"))
+                throw new RpcException(RpcErrorCodes.InvalidParams, "Nothing to paste.");
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                var fs = session.Inner;
+                var objectsBefore = new HashSet<string>(fs.SimulationObjects.Keys);
+                var packagesBefore = new HashSet<string>(fs.PropertyPackages.Keys);
+                var edit = session.Begin("Paste");
+                DWSIM.SharedClasses.SystemClipboard.SetText(Detached(text));
+                // PasteObjects swallows its errors; the last one thrown is what stopped it.
+                Exception last = null;
+                var thread = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                void Note(object sender, System.Runtime.ExceptionServices.FirstChanceExceptionEventArgs e)
+                {
+                    if (System.Threading.Thread.CurrentThread.ManagedThreadId == thread) last = e.Exception;
+                }
+                AppDomain.CurrentDomain.FirstChanceException += Note;
+                try { Base(session).PasteObjects(false); }
+                finally { AppDomain.CurrentDomain.FirstChanceException -= Note; }
+                var pasted = fs.SimulationObjects.Values.Where(o => !objectsBefore.Contains(o.Name)).ToList();
+                if (pasted.Count == 0)
+                    throw new RpcException(RpcErrorCodes.EngineError, "The engine could not paste that" + (last == null ? "." : ": " + last.Message));
+
+                foreach (var key in fs.PropertyPackages.Keys.Where(k => !packagesBefore.Contains(k)).ToList())
+                {
+                    // PasteObjects names a copy "<random>_<original id>".
+                    var original = key.Substring(key.IndexOf('_') + 1);
+                    if (!fs.PropertyPackages.TryGetValue(original, out var keep)) continue;
+                    var copy = fs.PropertyPackages[key];
+                    foreach (var obj in pasted)
+                        if (ReferenceEquals(PackageOf(obj), copy)) obj.PropertyPackage = keep;
+                    fs.PropertyPackages.Remove(key);
+                }
+                foreach (var obj in pasted)
+                {
+                    obj.Calculated = false;
+                    if (obj.GraphicObject != null) { obj.GraphicObject.Calculated = false; obj.GraphicObject.Selected = false; }
+                }
+                edit.Commit();
+                var graph = Get(flowsheetId);
+                graph["pasted"] = new JArray(pasted.Select(o => o.Name));
+                return graph;
+            }
+        }
+
+        /// <summary>
+        /// The clipboard XML with every connection to an object outside it undone: the engine
+        /// otherwise tries to reattach a pasted object to the original's neighbours, and the
+        /// first port already taken aborts the whole paste.
+        /// </summary>
+        internal static string Detached(string text)
+        {
+            System.Xml.Linq.XDocument doc;
+            try { doc = System.Xml.Linq.XDocument.Parse(text); }
+            catch (Exception ex) { throw new RpcException(RpcErrorCodes.InvalidParams, "Nothing to paste: " + ex.Message); }
+            var graphics = doc.Root?.Element("GraphicObjects")?.Elements().ToList() ?? new List<System.Xml.Linq.XElement>();
+            var inside = new HashSet<string>(graphics.Select(g => g.Element("Name")?.Value).Where(n => n != null));
+            foreach (var g in graphics)
+                foreach (var list in new[] { "InputConnectors", "OutputConnectors", "EnergyConnector" })
+                    foreach (var c in g.Element(list)?.Elements() ?? Enumerable.Empty<System.Xml.Linq.XElement>())
+                    {
+                        if (!string.Equals((string)c.Attribute("IsAttached"), "true", StringComparison.OrdinalIgnoreCase)) continue;
+                        var other = (string)c.Attribute("AttachedFromObjID") ?? (string)c.Attribute("AttachedToObjID");
+                        var to = (string)c.Attribute("AttachedToObjID");
+                        var from = (string)c.Attribute("AttachedFromObjID");
+                        if ((from != null && !inside.Contains(from)) || (to != null && !inside.Contains(to)) || (from == null && to == null))
+                            c.SetAttributeValue("IsAttached", "false");
+                    }
+            // A stream that never had a package set names none, and the engine pastes it under
+            // "<key>_" alone; give it the first package, the one it falls back to anyway.
+            var firstPackage = doc.Root?.Element("PropertyPackages")?.Elements().Select(p => p.Element("ID")?.Value).FirstOrDefault(v => !string.IsNullOrEmpty(v));
+            if (firstPackage != null)
+                foreach (var so in doc.Root?.Element("SimulationObjects")?.Elements() ?? Enumerable.Empty<System.Xml.Linq.XElement>())
+                {
+                    var pp = so.Element("PropertyPackage");
+                    if (pp != null && string.IsNullOrEmpty(pp.Value)) pp.Value = firstPackage;
+                }
+            return doc.ToString();
+        }
+
+        private static IPropertyPackage PackageOf(ISimulationObject obj)
+        {
+            try { return obj.PropertyPackage; } catch { return null; }
+        }
+
+        private static DWSIM.FlowsheetBase.FlowsheetBase Base(Session session)
+            => session.Inner as DWSIM.FlowsheetBase.FlowsheetBase
+               ?? throw new RpcException(RpcErrorCodes.EngineError, "This flowsheet does not support copy and paste.");
+
+        private static bool IsStream(IGraphicObject go)
+            => go.ObjectType == ObjectType.MaterialStream || go.ObjectType == ObjectType.EnergyStream;
+
+        /// <summary>Where a port sits, in flowsheet coordinates.</summary>
+        private static (double x, double y) PortPoint(IGraphicObject go, string port)
+        {
+            try { go.PositionConnectors(); } catch { }
+            IConnectionPoint cp = null;
+            if (port == "energy") cp = go.EnergyConnector;
+            else if (port?.StartsWith("out-") == true && int.TryParse(port.Substring(4), out var o) && o < go.OutputConnectors.Count) cp = go.OutputConnectors[o];
+            else if (port?.StartsWith("in-") == true && int.TryParse(port.Substring(3), out var i) && i < go.InputConnectors.Count) cp = go.InputConnectors[i];
+            if (cp?.Position != null) return (cp.Position.X, cp.Position.Y);
+            return (go.X + go.Width / 2.0, go.Y + go.Height / 2.0);
         }
 
         [RpcMethod("graph.disconnect")]
@@ -107,6 +326,7 @@ namespace DWSIM.Bridge.Methods
             var session = _sessions.Get(flowsheetId);
             lock (session.Gate)
             {
+                session.Record("Disconnect");
                 session.Inner.DisconnectObjects(session.Object(sourceId).GraphicObject, session.Object(targetId).GraphicObject);
                 return Get(flowsheetId);
             }
@@ -119,6 +339,7 @@ namespace DWSIM.Bridge.Methods
             lock (session.Gate)
             {
                 var go = session.Object(id).GraphicObject;
+                session.Record("Delete " + go.Tag);
                 session.Inner.DeleteSelectedObject(null, EventArgs.Empty, go, false, false);
                 return Get(flowsheetId);
             }
@@ -130,8 +351,37 @@ namespace DWSIM.Bridge.Methods
             var session = _sessions.Get(flowsheetId);
             lock (session.Gate)
             {
+                session.Record("Layout");
                 session.Inner.AutoLayout();
                 return Get(flowsheetId);
+            }
+        }
+
+        /// <summary>Undoes the last edit and returns the graph as it is then.</summary>
+        [RpcMethod("edit.undo")]
+        public JObject Undo(string flowsheetId) => Step(flowsheetId, redo: false);
+
+        [RpcMethod("edit.redo")]
+        public JObject Redo(string flowsheetId) => Step(flowsheetId, redo: true);
+
+        private JObject Step(string flowsheetId, bool redo)
+        {
+            var session = _sessions.Get(flowsheetId);
+            lock (session.Gate)
+            {
+                string label;
+                try
+                {
+                    label = redo ? session.History.Redo(session) : session.History.Undo(session);
+                }
+                catch (Exception ex)
+                {
+                    throw new RpcException(RpcErrorCodes.EngineError, (redo ? "Redo" : "Undo") + " failed: " + ex.Message);
+                }
+                if (label == null) throw new RpcException(RpcErrorCodes.EngineError, "Nothing to " + (redo ? "redo." : "undo."));
+                var graph = Get(flowsheetId);
+                graph["done"] = label;
+                return graph;
             }
         }
 

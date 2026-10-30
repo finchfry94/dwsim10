@@ -6528,6 +6528,9 @@ Label_00CC:
                 obj.SetFlowsheet(Me)
                 If Not gobj Is Nothing Then
                     obj.LoadData(xel.Elements.ToList)
+                    ' LoadData restores the original's name, which the copy's drawing no longer has and which
+                    ' clashes with the original when pasting into the same flowsheet: take the drawing's name.
+                    obj.Name = id
                     If TypeOf obj Is Streams.MaterialStream Then
                         For Each phase As BaseClasses.Phase In DirectCast(obj, Streams.MaterialStream).Phases.Values
                             For Each c As ConstantProperties In Options.SelectedComponents.Values

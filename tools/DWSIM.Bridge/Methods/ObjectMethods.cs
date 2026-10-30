@@ -60,6 +60,7 @@ namespace DWSIM.Bridge.Methods
                     default: raw = value.ToString(); break;
                 }
                 bool ok;
+                session.Record("Edit " + obj.GraphicObject?.Tag);
                 try
                 {
                     ok = obj.SetPropertyValue(property, raw, su);
@@ -82,6 +83,7 @@ namespace DWSIM.Bridge.Methods
             lock (session.Gate)
             {
                 var obj = session.Object(id);
+                session.Record("Rename " + obj.GraphicObject.Tag);
                 obj.GraphicObject.Tag = tag.Trim();
                 return GraphMethods.Node(obj);
             }
