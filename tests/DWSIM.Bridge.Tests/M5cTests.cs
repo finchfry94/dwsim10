@@ -171,5 +171,55 @@ namespace DWSIM.Bridge.Tests
             Assert.That(ex.Message, Does.Contain("rise"));
             Call("flowsheet.close", new { flowsheetId = fs });
         }
+
+        [Test]
+        public void ARegressionRecoversTheKijItsDataCameFromAndAppliesIt()
+        {
+            var fs = NewFlowsheet("Peng-Robinson (PR)", "Carbon dioxide", "Propane");
+            var package = Call("flowsheet.summary", new { flowsheetId = fs })["propertyPackages"][0].Value<string>("id");
+            var s = Call("graph.add", new { flowsheetId = fs, type = "MaterialStream", x = 0, y = 0, tag = "s" }).Value<string>("id");
+            double BubblePressure(double x1)
+            {
+                Call("stream.specify", new
+                {
+                    flowsheetId = fs, id = s, temperature = 270.0, vaporFraction = 0.0, molarFlow = 1.0,
+                    moleFractions = JObject.FromObject(new System.Collections.Generic.Dictionary<string, double> { ["Carbon dioxide"] = x1, ["Propane"] = 1 - x1 })
+                });
+                Assert.That(Call("solve.run", new { flowsheetId = fs }).Value<bool>("ok"), Is.True);
+                return Call("stream.get", new { flowsheetId = fs, id = s }).Value<double>("pressure");
+            }
+
+            // Bubble pressures at 270 K made with kij = 0.12: the data the regression gets.
+            Call("regression.apply", new { flowsheetId = fs, packageId = package, comp1 = "Carbon dioxide", comp2 = "Propane", parameters = JObject.FromObject(new { kij = 0.12 }) });
+            var xs = new[] { 0.1, 0.25, 0.4, 0.55, 0.7, 0.85 };
+            var points = xs.Select(x => new { t = 270.0 - 273.15, p = BubblePressure(x) / 1e5, x1 = x, y1 = 0.0 }).ToList();
+            var withKij = points[2].p;
+            Call("regression.apply", new { flowsheetId = fs, packageId = package, comp1 = "Carbon dioxide", comp2 = "Propane", parameters = JObject.FromObject(new { kij = 0.0 }) });
+            Assert.That(BubblePressure(0.4) / 1e5, Is.Not.EqualTo(withKij).Within(0.1), "kij moves the bubble pressure");
+
+            var r = Call("regression.run", new
+            {
+                flowsheetId = fs,
+                study = JObject.FromObject(new { comp1 = "Carbon dioxide", comp2 = "Propane", model = "Peng-Robinson", dataType = "Pxy", method = "IPOPT", points })
+            });
+            Assert.That(r.Value<string>("error"), Is.Null);
+            var kij = r["parameters"].Value<double>("kij");
+            Assert.That(kij, Is.EqualTo(0.12).Within(1e-3));
+            Assert.That(r["objective"].Type, Is.Not.EqualTo(JTokenType.Null));
+            var table = r["table"];
+            Assert.That(table["rows"].Count(), Is.EqualTo(6));
+            var dp = table["columns"].Values<string>().ToList().IndexOf("ΔP %");
+            Assert.That(dp, Is.GreaterThanOrEqualTo(0));
+            Assert.That(table["rows"].Select(row => System.Math.Abs(row[dp].Value<double>())), Is.All.LessThan(0.01), "the model meets every bubble pressure");
+            Assert.That(r["chart"]["series"].Any(x => x.Value<string>("kind") == "point"), Is.True, "the data shows as points");
+
+            Call("regression.apply", new { flowsheetId = fs, packageId = package, comp1 = "Carbon dioxide", comp2 = "Propane", parameters = r["parameters"] });
+            Assert.That(BubblePressure(0.4) / 1e5, Is.EqualTo(withKij).Within(0.01), "the fitted kij reproduces the data");
+
+            var models = Call("regression.models", new { });
+            Assert.That(models["models"].Select(m => m.Value<string>("name")), Is.SupersetOf(new[] { "Peng-Robinson", "NRTL", "UNIQUAC" }));
+            Assert.Throws<RpcException>(() => Call("regression.run", new { flowsheetId = fs, study = JObject.FromObject(new { comp1 = "Propane", comp2 = "Propane", points }) }));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
     }
 }
