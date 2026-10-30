@@ -127,6 +127,7 @@ async function main() {
   const port = (tag, id) =>
     page.locator(`.react-flow__node:has([data-testid="node-${tag}"]) [data-handleid="${id}"]`);
   let edges = 0;
+  let retries = 0;
   const lineSeen = [];
   const drag = async (from, to) => {
     // Not while a solve re-reads the flowsheet: the refresh remounts the ports under the pointer.
@@ -156,7 +157,11 @@ async function main() {
       })
       .then(() => true)
       .catch(() => false);
-    if (!made) ({ a, b } = await drag(from, to));
+    if (!made) {
+      retries += 1;
+      console.log(`connect-retry ${from} -> ${to} (connection line seen: ${lineSeen.at(-1)})`);
+      ({ a, b } = await drag(from, to));
+    }
     await page
       .waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
         timeout: 30_000,
@@ -474,6 +479,7 @@ async function main() {
   if (errors.length) console.error("console errors:", JSON.stringify(errors, null, 1));
   assert.deepEqual(errors, []);
   await browser.close();
+  console.log(`connect retries: ${retries}`);
   console.log("e2e smoke: ok");
 }
 
