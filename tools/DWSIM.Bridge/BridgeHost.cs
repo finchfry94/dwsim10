@@ -24,6 +24,7 @@ namespace DWSIM.Bridge
             registry.Register(new ScenarioMethods(sessions));
             registry.Register(new DynamicsMethods(sessions, notifier));
             registry.Register(new CompoundMethods(sessions));
+            registry.Register(new PetroleumMethods(sessions));
         }
 
         /// <summary>

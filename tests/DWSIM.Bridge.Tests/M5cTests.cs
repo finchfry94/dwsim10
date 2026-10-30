@@ -97,5 +97,79 @@ namespace DWSIM.Bridge.Tests
             Assert.That(Call("flowsheet.summary", new { flowsheetId = fs })["compounds"].Values<string>(), Does.Not.Contain("Cyclohexane (mine)"));
             Call("flowsheet.close", new { flowsheetId = fs });
         }
+
+        [Test]
+        public void ABulkPlusFractionBecomesPseudocompoundsAndAStreamThatSolves()
+        {
+            var fs = NewFlowsheet("Peng-Robinson (PR)", "Methane");
+            var r = Call("petroleum.bulk", new
+            {
+                flowsheetId = fs,
+                assay = JObject.FromObject(new
+                {
+                    name = "C7P",
+                    molarWeight = 200.0,
+                    specificGravity = 0.83,
+                    count = 6,
+                    lightEnds = new[] { new { compound = "Methane", percent = 30.0 }, new { compound = "Propane", percent = 10.0 } },
+                    lightEndsBasis = "Mole"
+                })
+            });
+            var pseudos = r["compounds"].ToList();
+            Assert.That(pseudos, Has.Count.EqualTo(6));
+            var x = pseudos.Sum(c => c.Value<double>("moleFraction"));
+            var mw = pseudos.Sum(c => c.Value<double>("moleFraction") * c.Value<double>("molarWeight")) / x;
+            Assert.That(mw, Is.EqualTo(200.0).Within(2.0), "the cuts average the given molar weight");
+            Assert.That(x, Is.EqualTo(0.6).Within(1e-6), "what the light ends leave");
+            Assert.That(r["lightEnds"].Value<double>("Methane"), Is.EqualTo(0.3).Within(1e-9));
+            var nbp = pseudos.Select(c => c.Value<double>("boilingPoint")).ToList();
+            Assert.That(nbp, Is.Ordered.Ascending);
+            Assert.That(r["summary"]["compounds"].Values<string>(), Contains.Item("Propane"), "a light end not yet in the flowsheet joins it");
+
+            Call("stream.specify", new { flowsheetId = fs, id = r.Value<string>("stream"), temperature = 350.0, pressure = 2e5, massFlow = 1.0 });
+            Assert.That(Call("solve.run", new { flowsheetId = fs }).Value<bool>("ok"), Is.True);
+            var vf = Call("stream.get", new { flowsheetId = fs, id = r.Value<string>("stream") }).Value<double>("vaporFraction");
+            Assert.That(vf, Is.InRange(0.3, 0.5), "about the light ends' share flashes off at 350 K and 2 bar");
+
+            Assert.Throws<RpcException>(() => Call("petroleum.bulk", new { flowsheetId = fs, assay = JObject.FromObject(new { name = "C7P", molarWeight = 150.0 }) }));
+            Assert.Throws<RpcException>(() => Call("petroleum.bulk", new { flowsheetId = fs, assay = JObject.FromObject(new { name = "Y" }) }));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
+
+        [Test]
+        public void ADistillationCurveBecomesCutsAcrossItsRange()
+        {
+            var fs = NewFlowsheet("Peng-Robinson (PR)", "Methane");
+            var curve = new[] { (0, 30.0), (10, 120.0), (30, 220.0), (50, 300.0), (70, 390.0), (90, 520.0), (100, 600.0) };
+            var r = Call("petroleum.curve", new
+            {
+                flowsheetId = fs,
+                assay = JObject.FromObject(new
+                {
+                    name = "CRUDE",
+                    curveType = "TBP",
+                    curveBasis = "LiquidVolume",
+                    count = 8,
+                    temperatureUnit = "C",
+                    specificGravity = 0.85,
+                    points = curve.Select(p => new { percent = (double)p.Item1, temperature = p.Item2 })
+                })
+            });
+            var cuts = r["compounds"].ToList();
+            Assert.That(cuts, Has.Count.EqualTo(8));
+            Assert.That(cuts.Sum(c => c.Value<double>("moleFraction")), Is.EqualTo(1.0).Within(1e-6));
+            var nbp = cuts.Select(c => c.Value<double>("boilingPoint")).ToList();
+            Assert.That(nbp, Is.Ordered.Ascending);
+            Assert.That(nbp.First(), Is.InRange(303.15, 450.0), "the first cut sits low on the curve");
+            Assert.That(nbp.Last(), Is.InRange(750.0, 873.15), "the last near its end");
+
+            var ex = Assert.Throws<RpcException>(() => Call("petroleum.curve", new
+            {
+                flowsheetId = fs,
+                assay = JObject.FromObject(new { name = "BAD", temperatureUnit = "C", points = new[] { new { percent = 0.0, temperature = 300.0 }, new { percent = 50.0, temperature = 200.0 } } })
+            }));
+            Assert.That(ex.Message, Does.Contain("rise"));
+            Call("flowsheet.close", new { flowsheetId = fs });
+        }
     }
 }
