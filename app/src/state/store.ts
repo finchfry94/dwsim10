@@ -196,6 +196,10 @@ function readAutoSolve(): boolean {
   }
 }
 
+/** The flowsheet's objects, or one shared empty list: a selector must not build a new array each call. */
+const NO_NODES: GraphNode[] = [];
+export const selectNodes = (s: AppState): GraphNode[] => s.graph?.nodes ?? NO_NODES;
+
 export const useApp = create<AppState>((set, get) => {
   /** Runs an engine action, logging a failure instead of throwing into the UI. */
   async function attempt<T>(what: string, action: () => Promise<T>): Promise<T | undefined> {

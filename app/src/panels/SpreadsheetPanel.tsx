@@ -67,18 +67,15 @@ export function SpreadsheetPanel() {
     }
   };
 
+  /** Writes the draft to the selected cell and moves on at once; the engine's answer arrives after. */
   const commit = async (move: { row: number; col: number } = { row: 1, col: 0 }) => {
-    if (draft !== null && draft !== (current?.input ?? "")) {
-      const text = draft;
-      setDraft(null);
-      // A SETPROPVAL cell changes the simulation, so solve as after any edit.
-      await run(
-        () =>
-          engine.setCells(id, [{ address: address(selected.row, selected.col), input: text }], sheet.sheet),
-        true,
-      );
-    } else setDraft(null);
+    const target = address(selected.row, selected.col);
+    const text = draft;
+    const changed = text !== null && text !== (current?.input ?? "");
+    setDraft(null);
     setSelected((s) => ({ row: Math.max(0, s.row + move.row), col: Math.max(0, s.col + move.col) }));
+    // A SETPROPVAL cell changes the simulation, so solve as after any edit.
+    if (changed) await run(() => engine.setCells(id, [{ address: target, input: text! }], sheet.sheet), true);
   };
 
   const onGridKey = (e: React.KeyboardEvent) => {

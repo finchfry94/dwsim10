@@ -18,10 +18,9 @@ engine (M2), rigorous columns and the Adjust and Spec pickers included (M2b), an
 comfortable (M3: undo, copy/paste, multi-select and alignment, command palette, cancel solve,
 diagnostics), and results can be read and analysed (M4a: stream table, phase and binary envelopes,
 report; M4b: engineering tools, pipe profiles, Excel export), and reactions, sensitivity analysis
-and the optimizer are in (M5a). See `app/README.md`.
+and the optimizer (M5a), and scripts, the spreadsheet, scenarios and dynamics (M5b) are in. See `app/README.md`.
 
-Front-end milestones still to do: M3 leftovers (annotations, per-object solve progress), M5b
-(dynamics, scripting, spreadsheet, scenarios), M5c (compound creator and importers, petroleum
+Front-end milestones still to do: M3 leftovers (annotations, per-object solve progress), M5c (compound creator and importers, petroleum
 characterization, data regression), M6 polish and shipping.
 Simulation settings (solver mode, tolerances) from M1 are also still to do.
 

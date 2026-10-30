@@ -1,7 +1,7 @@
 import { Box, Command as CommandIcon, Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { fuzzyScore, keyLabel, type Command } from "../lib/commands";
-import { useApp } from "../state/store";
+import { selectNodes, useApp } from "../state/store";
 
 interface Item {
   key: string;
@@ -22,7 +22,7 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
 }
 
 function Palette({ commands }: { commands: Command[] }) {
-  const nodes = useApp((s) => s.graph?.nodes ?? []);
+  const nodes = useApp(selectNodes);
   const close = () => useApp.getState().openPalette(false);
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);

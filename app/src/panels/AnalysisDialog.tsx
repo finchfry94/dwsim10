@@ -6,7 +6,7 @@ import type { ChartData, EnvelopeDiagram } from "../engine/types";
 import { downloadText, fileName, toCsv } from "../lib/csv";
 import { formatNumber, unitLabel } from "../lib/units";
 import { useEscape } from "../lib/useEscape";
-import { useApp } from "../state/store";
+import { selectNodes, useApp } from "../state/store";
 import { chartRows, XYChart } from "./XYChart";
 
 const DIAGRAMS: { value: EnvelopeDiagram; label: string }[] = [
@@ -94,7 +94,7 @@ function useCalculation() {
 }
 
 function PhaseEnvelope({ flowsheetId, initialStream }: { flowsheetId: string; initialStream?: string }) {
-  const nodes = useApp((s) => s.graph?.nodes ?? []);
+  const nodes = useApp(selectNodes);
   const streams = nodes.filter((n) => n.type === "MaterialStream");
   const [stream, setStream] = useState(initialStream ?? streams[0]?.id ?? "");
   const [diagram, setDiagram] = useState<EnvelopeDiagram>("PT");

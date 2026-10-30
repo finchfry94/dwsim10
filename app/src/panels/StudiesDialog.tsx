@@ -17,7 +17,7 @@ import type {
 import { downloadText, fileName, toCsv } from "../lib/csv";
 import { formatNumber, unitLabel } from "../lib/units";
 import { useEscape } from "../lib/useEscape";
-import { useApp } from "../state/store";
+import { selectNodes, useApp } from "../state/store";
 import { XYChart } from "./XYChart";
 
 const closeStudies = () => useApp.getState().openStudies(null);
@@ -96,7 +96,7 @@ export function VariablePicker({
   writable: boolean;
   label: string;
 }) {
-  const nodes = useApp((s) => s.graph?.nodes ?? []);
+  const nodes = useApp(selectNodes);
   const [properties, setProperties] = useState<VariableOption[]>([]);
   useEffect(() => {
     if (!value.object) return setProperties([]);

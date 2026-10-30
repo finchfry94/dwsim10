@@ -226,21 +226,23 @@ export function Toolbar({
           <FileCode size={16} />
         </button>
         <button
-          className="btn"
+          className="btn btn-icon"
           onClick={() => useApp.getState().openReport(true)}
           disabled={!has}
           title={`Report (${keyLabel("Mod+P")})`}
           data-testid="report"
+          aria-label="Report"
         >
-          <FileText size={16} /> Report
+          <FileText size={16} />
         </button>
         <button
-          className="btn"
+          className="btn btn-icon"
           onClick={() => void autoLayout()}
           disabled={!has}
           title="Arrange objects automatically"
+          aria-label="Layout"
         >
-          <LayoutGrid size={16} /> Layout
+          <LayoutGrid size={16} />
         </button>
       </div>
       <div className="toolbar-group">

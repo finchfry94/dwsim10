@@ -4,7 +4,7 @@ import { engine } from "../engine/api";
 import { EngineError } from "../engine/transport";
 import type { Script, ScriptRun } from "../engine/types";
 import { useEscape } from "../lib/useEscape";
-import { useApp } from "../state/store";
+import { selectNodes, useApp } from "../state/store";
 
 const closeScripts = () => useApp.getState().openScripts(false);
 
@@ -58,7 +58,7 @@ export function indent(
 export function ScriptsDialog() {
   const open = useApp((s) => s.scripts);
   const flowsheet = useApp((s) => s.flowsheet);
-  const nodes = useApp((s) => s.graph?.nodes ?? []);
+  const nodes = useApp(selectNodes);
   useEscape(open, closeScripts);
   const [scripts, setScripts] = useState<Script[] | null>(null);
   const [events, setEvents] = useState<Record<string, string[]>>({});

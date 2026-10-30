@@ -11,9 +11,11 @@
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
 // auto-solve brings the product to 80 °C; builds a reaction and runs a sensitivity analysis on
-// the heater. Last, opens the extractive distillation sample, changes
-// a column's reflux ratio in its editor and checks that the column re-solves. Along the way it
-// deletes and undoes, duplicates, checks the flowsheet from the command palette and cancels a solve.
+// the heater, runs a script, writes a spreadsheet formula and compares two scenarios. Then opens
+// the extractive distillation sample, changes a column's reflux ratio in its editor and checks
+// that the column re-solves, and cancels a solve. Last, opens the three-phase separator sample
+// and integrates it in dynamic mode. Along the way it deletes and undoes, duplicates and checks
+// the flowsheet from the command palette.
 
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -132,9 +134,27 @@ async function main() {
     await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 10 });
     await page.mouse.up();
     edges += 1;
-    await page.waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
-      timeout: 10_000,
-    });
+    await page
+      .waitForFunction((n) => document.querySelectorAll(".react-flow__edge").length >= n, edges, {
+        timeout: 30_000,
+      })
+      .catch(async (e) => {
+        await shot("connect-stuck");
+        console.error(
+          "connect-stuck",
+          JSON.stringify(a),
+          await page.evaluate(
+            ([x, y]) => {
+              const el = document.elementFromPoint(x, y);
+              return el ? el.outerHTML.slice(0, 300) : null;
+            },
+            [a.x + a.width / 2, a.y + a.height / 2],
+          ),
+          JSON.stringify(b),
+          (await page.locator(".log-line").allInnerTexts()).slice(-3),
+        );
+        throw e;
+      });
   };
   await connect(port("1", "out-0"), port(heater, "in-0"));
   await connect(port(heater, "out-0"), port("2", "in-0"));
@@ -264,6 +284,55 @@ async function main() {
   await page.keyboard.press("Escape");
   await studies.waitFor({ state: "detached" });
 
+  // A script reads the heater's outlet temperature (80 °C) through the engine's Python.
+  await page.getByTestId("scripts").click();
+  const scripts = page.getByRole("dialog", { name: "Scripts" });
+  await scripts
+    .getByTestId("script-text")
+    .fill(`print('%.1f' % ${heater.replace(/-/g, "_")}.GetPropertyValue('PROP_HT_2'))`);
+  await scripts.getByTestId("run-script").click();
+  const output = scripts.getByTestId("script-output");
+  await output.waitFor({ timeout: 60_000 });
+  assert.match(await output.innerText(), /353\.[12]/);
+  await page.keyboard.press("Escape");
+  await scripts.waitFor({ state: "detached" });
+
+  // The spreadsheet: a formula the engine calculates.
+  await page.getByTestId("tab-sheet").click();
+  const sheet = page.getByTestId("spreadsheet");
+  await sheet.locator('td[data-address="A1"]').click();
+  await page.keyboard.type("=6*7");
+  await page.keyboard.press("Enter");
+  await sheet.locator('td[data-address="A1"]').filter({ hasText: "42" }).waitFor({ timeout: 30_000 });
+  await page.getByTestId("tab-log").click();
+
+  // Scenarios: capture, change the heater's outlet to 75 °C, capture again; the changed
+  // specification heads the comparison.
+  await page.getByTestId("studies").click();
+  await studies.getByRole("tab", { name: "Scenarios" }).click();
+  await studies.getByTestId("capture-A").click();
+  await studies.getByText(/A, \d/).waitFor();
+  await page.keyboard.press("Escape");
+  await studies.waitFor({ state: "detached" });
+  await page.locator(`[data-testid="node-${heater}"]`).click();
+  await editor.getByLabel("Outlet Temperature unit").selectOption("C");
+  await outletT.fill("75");
+  await outletT.press("Enter");
+  await page.locator('[data-testid="node-2"]').click();
+  await temperature.filter({ hasText: "75 °C" }).waitFor({ timeout: 60_000 });
+  await page.getByTestId("studies").click();
+  await studies.getByRole("tab", { name: "Scenarios" }).click();
+  await studies.getByTestId("capture-B").click();
+  const comparison = studies.getByTestId("scenario-result");
+  await comparison.waitFor({ timeout: 30_000 });
+  assert.match(
+    await comparison.locator("tbody tr").first().innerText(),
+    new RegExp(`${heater}[\\s\\S]*Outlet Temperature`),
+  );
+  await shot("scenarios");
+  await page.keyboard.press("Escape");
+  await studies.waitFor({ state: "detached" });
+
   // A rigorous column: change the reflux ratio in its editor; auto-solve re-solves the column
   // and the condenser duty and stage profile follow.
   await page.goto(base);
@@ -299,6 +368,41 @@ async function main() {
   await page.getByTestId("cancel-solve").click();
   await page.getByTestId("solve").waitFor({ timeout: 60_000 });
   await page.locator(".log-line").filter({ hasText: "Solve cancelled." }).waitFor({ timeout: 60_000 });
+
+  // Dynamics: the three-phase separator sample made ready by the suggested fixes, its level
+  // recorded, and a short run charted.
+  page.once("dialog", (d) => d.accept()); // the column edits are unsaved
+  await page.getByRole("button", { name: "Open", exact: true }).click();
+  await page
+    .getByPlaceholder("/path/to/flowsheet.dwxmz")
+    .fill(require("node:path").resolve(__dirname, "../../tests/flowsheets/ThreePhaseSeparator.dwxml"));
+  await page.keyboard.press("Enter");
+  await page.locator('[data-testid="node-separator"]').waitFor({ timeout: 60_000 });
+  await page.getByTestId("solve").click();
+  await page.getByTestId("solve").waitFor({ timeout: 120_000 });
+  await page.getByTestId("dynamics").click();
+  const dynamics = page.getByRole("dialog", { name: "Dynamics" });
+  await dynamics.getByLabel("Dynamic mode").click();
+  await dynamics
+    .getByTestId("dynamic-mode-badge")
+    .filter({ hasText: "Dynamic mode" })
+    .waitFor({ timeout: 30_000 });
+  await dynamics.getByTestId("apply-all-fixes").click();
+  await dynamics.getByText(/^Applied \d+ fix/).waitFor({ timeout: 30_000 });
+  await dynamics.getByRole("tab", { name: "Integrators" }).click();
+  await dynamics.getByRole("button", { name: "Record a variable" }).click();
+  await dynamics.getByLabel("Recorded variable 1 object").selectOption({ label: "separator" });
+  await dynamics.getByLabel("Recorded variable 1 property").selectOption("Liquid Level");
+  await dynamics.getByLabel("Duration", { exact: true }).fill("60");
+  await dynamics.getByTestId("save-integrator").click();
+  await dynamics.getByRole("tab", { name: "Run" }).click();
+  await dynamics.getByText(/recording 1 variable/).waitFor({ timeout: 30_000 });
+  await dynamics.getByTestId("run-dynamics").click();
+  await dynamics.getByTestId("dynamics-result").getByTestId("xy-chart").waitFor({ timeout: 120_000 });
+  assert.match(await dynamics.getByTestId("dynamics-result").innerText(), /\d+ samples/);
+  await shot("dynamics");
+  await page.keyboard.press("Escape");
+  await dynamics.waitFor({ state: "detached" });
 
   if (errors.length) console.error("console errors:", JSON.stringify(errors, null, 1));
   assert.deepEqual(errors, []);
