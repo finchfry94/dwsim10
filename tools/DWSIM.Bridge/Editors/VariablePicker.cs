@@ -144,7 +144,7 @@ namespace DWSIM.Bridge.Editors
         private static IEnumerable<ISimulationObject> Others(IFlowsheet fs, ISimulationObject block)
             => fs.SimulationObjects.Values.Where(o => o.GraphicObject != null && o.Name != block.Name).OrderBy(o => o.GraphicObject.Tag);
 
-        private static string Caption(IFlowsheet fs, ISimulationObject obj, string id)
+        internal static string Caption(IFlowsheet fs, ISimulationObject obj, string id)
         {
             string caption;
             try { caption = fs.GetTranslatedString(id); } catch { caption = null; }
