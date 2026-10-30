@@ -265,8 +265,8 @@ namespace DWSIM.Bridge.Methods
                     charts.Add(new JObject
                     {
                         ["title"] = string.Join(", ", keys.Select(k => depLabels[k])),
-                        ["x"] = new JObject { ["label"] = xLabel, ["unit"] = string.IsNullOrEmpty(iu) ? null : iu },
-                        ["y"] = new JObject { ["label"] = keys.Count == 1 ? depLabels[keys[0]] : "Value", ["unit"] = group.Key.Length == 0 ? null : group.Key },
+                        ["x"] = new JObject { ["label"] = Property(xLabel), ["unit"] = string.IsNullOrEmpty(iu) ? null : iu },
+                        ["y"] = new JObject { ["label"] = keys.Count == 1 ? Property(depLabels[keys[0]]) : "Value", ["unit"] = group.Key.Length == 0 ? null : group.Key },
                         ["series"] = new JArray(keys.Select(k =>
                         {
                             var pairs = xs.Select((x, i) => (x, y: rows[i][k])).Where(p => !double.IsNaN(p.y) && !double.IsInfinity(p.y)).ToList();
@@ -287,6 +287,9 @@ namespace DWSIM.Bridge.Methods
                 };
             }
         }
+
+        /// <summary>The property part of "tag · property": axis titles are short, the chart title names the object.</summary>
+        private static string Property(string label) => label?.Split(new[] { " · " }, 2, StringSplitOptions.None).Last() ?? "";
 
         private static string Header(string label, string unit) => string.IsNullOrEmpty(unit) ? label : label + " (" + unit + ")";
 
