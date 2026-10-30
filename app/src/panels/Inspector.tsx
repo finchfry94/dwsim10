@@ -8,6 +8,7 @@ import type { GraphNode, ObjectProperties, PropertyEntry, StreamDetails, UnitSys
 import { formatNumber, formatQuantity } from "../lib/units";
 import { useApp } from "../state/store";
 import { SchemaEditor } from "./SchemaEditor";
+import { ScrollFade } from "./ScrollFade";
 import { StreamEditor } from "./StreamEditor";
 
 /** Reads engine data for the selection, again whenever the store's revision moves on. */
@@ -224,11 +225,11 @@ function StreamSummary({
               ))}
             </div>
           </div>
-          <div className="table-scroll">
-            <table className="grid-table" data-testid="composition">
+          <ScrollFade>
+            <table className="grid-table composition-table" data-testid="composition">
               <thead>
                 <tr>
-                  <th>Compound</th>
+                  <th className="sticky-col">Compound</th>
                   <th>Overall</th>
                   {others.map((p) => (
                     <th key={p.index}>{p.name}</th>
@@ -238,7 +239,9 @@ function StreamSummary({
               <tbody>
                 {mixture.compounds.map((c, i) => (
                   <tr key={c.name}>
-                    <td>{c.name}</td>
+                    <td className="sticky-col compound-name" title={c.name}>
+                      {c.name}
+                    </td>
                     <td className="num">
                       {formatNumber(basis === "mole" ? c.moleFraction : c.massFraction)}
                     </td>
@@ -254,7 +257,7 @@ function StreamSummary({
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollFade>
         </section>
       )}
     </>
