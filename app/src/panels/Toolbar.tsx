@@ -20,6 +20,7 @@ import {
   Tags,
   Undo2,
   Target,
+  TestTube,
   Wrench,
 } from "lucide-react";
 import { keyLabel } from "../lib/commands";
@@ -135,6 +136,16 @@ export function Toolbar({
           data-testid="reactions"
         >
           <Atom size={16} /> Reactions
+        </button>
+        <button
+          className="btn btn-icon"
+          onClick={() => useApp.getState().openCompoundTools("create")}
+          disabled={!has}
+          title="New compounds, petroleum fluids and data regression"
+          aria-label="Compound tools"
+          data-testid="compound-tools"
+        >
+          <TestTube size={16} />
         </button>
       </div>
       <div className="toolbar-group">

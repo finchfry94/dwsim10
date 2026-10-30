@@ -684,6 +684,95 @@ export interface DynamicsRun {
   durationMs?: number;
 }
 
+// ---------------------------------------------------------------- compounds, petroleum, regression
+
+/** What is known about a new compound; numbers in the units of `units`, else SI. */
+export interface CompoundInput {
+  name: string;
+  smiles?: string;
+  formula?: string;
+  cas?: string;
+  molarWeight?: number | null;
+  tc?: number | null;
+  pc?: number | null;
+  vc?: number | null;
+  omega?: number | null;
+  tb?: number | null;
+}
+
+export interface CompoundEstimate {
+  name: string;
+  formula: string | null;
+  smiles: string | null;
+  properties: { property: string; value: string; unit: string; origin: string }[];
+  groups: Record<string, number>;
+  unsupportedGroups: string[];
+  checklist: { property: string; available: boolean }[];
+  usable: boolean;
+  summary?: FlowsheetSummary;
+}
+
+export interface PetroleumOptions {
+  mw: string[];
+  tc: string[];
+  pc: string[];
+  omega: string[];
+  lightEnds: string[];
+  bases: string[];
+}
+
+export interface LightEnd {
+  compound: string;
+  percent: number;
+}
+
+export interface PetroleumResult {
+  stream: string;
+  tag: string;
+  compounds: {
+    name: string;
+    moleFraction: number | null;
+    molarWeight: number | null;
+    specificGravity: number | null;
+    boilingPoint: number | null;
+    criticalTemperature: number | null;
+    criticalPressure: number | null;
+    acentricFactor: number | null;
+  }[];
+  lightEnds: Record<string, number>;
+  warnings?: string[];
+  summary: FlowsheetSummary;
+}
+
+export interface RegressionModel {
+  name: string;
+  package: string;
+  idealVaporOption: boolean;
+  parameters: { label: string; lower: number; initial: number; upper: number; fixed: boolean }[];
+}
+
+export interface RegressionPoint {
+  use?: boolean;
+  t: number | null;
+  p: number | null;
+  x1: number | null;
+  y1: number | null;
+}
+
+export interface RegressionResult {
+  cancelled: boolean;
+  error: string | null;
+  model: string;
+  package: string;
+  comp1: string;
+  comp2: string;
+  parameters: Record<string, number | null>;
+  iterations: number;
+  objective: number | null;
+  table: { columns: string[]; rows: (number | null)[][] };
+  chart: ChartData | null;
+}
+
 export interface StreamTable {
   streams: { id: string; tag: string; calculated: boolean }[];
   rows: {

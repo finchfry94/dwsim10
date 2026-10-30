@@ -250,6 +250,27 @@ export function buildCommands(shell: ShellActions): Command[] {
       run: () => app().openStudies("optimizer"),
     },
     {
+      id: "setup.createCompound",
+      label: "Create a compound…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openCompoundTools("create"),
+    },
+    {
+      id: "setup.petroleum",
+      label: "Characterize a petroleum fluid…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openCompoundTools("petroleum"),
+    },
+    {
+      id: "setup.regression",
+      label: "Regress interaction parameters…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openCompoundTools("regression"),
+    },
+    {
       id: "tools.scenarios",
       label: "Compare scenarios…",
       group: "Tools",

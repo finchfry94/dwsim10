@@ -40,6 +40,8 @@ interface AppState {
   studies: "sensitivity" | "optimizer" | "scenarios" | null;
   scripts: boolean;
   dynamics: boolean;
+  /** The compound tools dialog, on a tab. */
+  compoundTools: "create" | "petroleum" | "regression" | null;
   /** The running integration's progress, from dynamics/progress notifications. */
   dynamicsProgress: { seconds: number; total: number | null; text: string } | null;
   /** The running study's progress, from the engine's study/progress notifications. */
@@ -97,6 +99,7 @@ interface AppState {
   openStudies(tab: AppState["studies"]): void;
   openScripts(open: boolean): void;
   openDynamics(open: boolean): void;
+  openCompoundTools(tab: AppState["compoundTools"]): void;
   openShortcuts(open: boolean): void;
   /** True when there are no unsaved changes, or the user agrees to lose them. */
   confirmDiscard(): boolean;
@@ -282,6 +285,7 @@ export const useApp = create<AppState>((set, get) => {
     studyProgress: null,
     scripts: false,
     dynamics: false,
+    compoundTools: null,
     dynamicsProgress: null,
     palette: false,
     shortcuts: false,
@@ -514,6 +518,7 @@ export const useApp = create<AppState>((set, get) => {
     openStudies: (studies) => set({ studies }),
     openScripts: (scripts) => set({ scripts }),
     openDynamics: (dynamics) => set({ dynamics }),
+    openCompoundTools: (compoundTools) => set({ compoundTools }),
     openShortcuts: (shortcuts) => set({ shortcuts }),
 
     confirmDiscard() {

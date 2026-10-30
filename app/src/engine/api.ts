@@ -38,6 +38,12 @@ import type {
   DynamicsIntegrator,
   DynamicsSchedule,
   DynamicsEventSet,
+  CompoundInput,
+  CompoundEstimate,
+  PetroleumOptions,
+  PetroleumResult,
+  RegressionModel,
+  RegressionResult,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -246,4 +252,34 @@ export const engine = {
     call<DynamicsRun>("dynamics.run", { flowsheetId, schedule }, requestId),
   dynamicsResults: (flowsheetId: string, integrator: string) =>
     call<DynamicsRun>("dynamics.results", { flowsheetId, integrator }),
+
+  estimateCompound: (flowsheetId: string, compound: CompoundInput, units?: Record<string, string>) =>
+    call<CompoundEstimate>("compounds.estimate", { flowsheetId, compound, units }),
+  createCompound: (flowsheetId: string, compound: CompoundInput, units?: Record<string, string>) =>
+    call<CompoundEstimate>("compounds.create", { flowsheetId, compound, units }),
+  petroleumOptions: (flowsheetId: string) => call<PetroleumOptions>("petroleum.options", { flowsheetId }),
+  characterizeBulk: (flowsheetId: string, assay: Record<string, unknown>) =>
+    call<PetroleumResult>("petroleum.bulk", { flowsheetId, assay }),
+  characterizeCurve: (flowsheetId: string, assay: Record<string, unknown>) =>
+    call<PetroleumResult>("petroleum.curve", { flowsheetId, assay }),
+  regressionModels: () =>
+    call<{ models: RegressionModel[]; methods: string[]; objectives: string[]; dataTypes: string[] }>(
+      "regression.models",
+    ),
+  runRegression: (flowsheetId: string, study: Record<string, unknown>, requestId?: string) =>
+    call<RegressionResult>("regression.run", { flowsheetId, study }, requestId),
+  applyRegression: (
+    flowsheetId: string,
+    packageId: string,
+    comp1: string,
+    comp2: string,
+    parameters: Record<string, number | null>,
+  ) =>
+    call<{ applied: boolean; package: string }>("regression.apply", {
+      flowsheetId,
+      packageId,
+      comp1,
+      comp2,
+      parameters,
+    }),
 };

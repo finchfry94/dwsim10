@@ -2045,3 +2045,14 @@ tr.is-spec td {
   border-radius: 2px;
   transition: width 0.2s;
 }
+.code-input {
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.regression-data {
+  min-height: 120px;
+  flex: none;
+}
+.segmented button[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
