@@ -15,6 +15,7 @@ namespace DWSIM.Bridge
             registry.Register(new SetupMethods(sessions));
             registry.Register(new EditorMethods(sessions));
             registry.Register(new SolveMethods(sessions, notifier));
+            registry.Register(new AnalysisMethods(sessions));
         }
 
         /// <summary>
