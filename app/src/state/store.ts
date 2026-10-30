@@ -28,8 +28,11 @@ interface AppState {
   clipboard: string | null;
   /** The latest solve.check, or null before the first. */
   findings: Finding[] | null;
-  bottomTab: "log" | "diagnostics";
+  bottomTab: "log" | "diagnostics" | "streams";
   palette: boolean;
+  /** The analysis dialog, on one of its tabs, for a stream when opened from one. */
+  analysis: { tab: "phase" | "binary"; streamId?: string } | null;
+  report: boolean;
   shortcuts: boolean;
   /** Recently opened or saved files, newest first. */
   recent: string[];
@@ -76,6 +79,8 @@ interface AppState {
   /** Selects an object and brings it into view. */
   focusObject(id: string): void;
   openPalette(open: boolean): void;
+  openAnalysis(analysis: AppState["analysis"]): void;
+  openReport(open: boolean): void;
   openShortcuts(open: boolean): void;
   /** True when there are no unsaved changes, or the user agrees to lose them. */
   confirmDiscard(): boolean;
@@ -249,6 +254,8 @@ export const useApp = create<AppState>((set, get) => {
     clipboard: null,
     findings: null,
     bottomTab: "log",
+    analysis: null,
+    report: false,
     palette: false,
     shortcuts: false,
     recent: readRecent(),
@@ -473,6 +480,8 @@ export const useApp = create<AppState>((set, get) => {
       set((s) => ({ focus: { id, seq: (s.focus?.seq ?? 0) + 1 } }));
     },
     openPalette: (palette) => set({ palette }),
+    openAnalysis: (analysis) => set({ analysis }),
+    openReport: (report) => set({ report }),
     openShortcuts: (shortcuts) => set({ shortcuts }),
 
     confirmDiscard() {

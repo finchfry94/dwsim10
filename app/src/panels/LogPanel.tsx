@@ -2,6 +2,7 @@ import { AlertCircle, AlertTriangle, Info, RefreshCw } from "lucide-react";
 import { useEffect, useRef } from "react";
 import type { Finding } from "../engine/types";
 import { useApp } from "../state/store";
+import { StreamTablePanel } from "./StreamTablePanel";
 
 /** The bottom panel: the engine's log, and the findings of the last flowsheet check. */
 export function LogPanel() {
@@ -10,10 +11,16 @@ export function LogPanel() {
   const setTab = useApp((s) => s.setBottomTab);
   const problems = findings?.filter((f) => f.severity !== "info").length ?? 0;
   return (
-    <section className="panel log" aria-label="Log and diagnostics">
+    <section className="panel log" aria-label="Log, diagnostics and streams">
       <div className="panel-header">
         <div className="tabs" role="tablist">
-          <button role="tab" aria-selected={tab === "log"} className="tab" onClick={() => setTab("log")}>
+          <button
+            role="tab"
+            aria-selected={tab === "log"}
+            className="tab"
+            onClick={() => setTab("log")}
+            data-testid="tab-log"
+          >
             Log
           </button>
           <button
@@ -26,10 +33,25 @@ export function LogPanel() {
             Diagnostics
             {findings && <span className={`count ${problems ? "count-warn" : ""}`}>{findings.length}</span>}
           </button>
+          <button
+            role="tab"
+            aria-selected={tab === "streams"}
+            className="tab"
+            onClick={() => setTab("streams")}
+            data-testid="tab-streams"
+          >
+            Streams
+          </button>
         </div>
-        {tab === "log" ? <LogActions /> : <CheckAction />}
+        {tab === "log" ? <LogActions /> : tab === "diagnostics" ? <CheckAction /> : null}
       </div>
-      {tab === "log" ? <LogLines /> : <Findings findings={findings} />}
+      {tab === "log" ? (
+        <LogLines />
+      ) : tab === "diagnostics" ? (
+        <Findings findings={findings} />
+      ) : (
+        <StreamTablePanel />
+      )}
     </section>
   );
 }

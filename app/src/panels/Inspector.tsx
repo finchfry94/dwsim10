@@ -1,4 +1,4 @@
-import { AlertTriangle, Search } from "lucide-react";
+import { AlertTriangle, ChartSpline, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { typeLabel } from "../canvas/catalog";
 import { ProcessSymbol } from "../canvas/symbols";
@@ -136,6 +136,15 @@ function ObjectInspector({
         <StreamEditor flowsheetId={flowsheetId} stream={stream.data} units={units} />
       )}
       {stream.data?.kind === "material" && <StreamSummary s={stream.data} units={units} />}
+      {stream.data?.kind === "material" && (
+        <button
+          className="btn mt-2"
+          onClick={() => useApp.getState().openAnalysis({ tab: "phase", streamId: node.id })}
+          data-testid="phase-envelope"
+        >
+          <ChartSpline size={14} /> Phase envelope
+        </button>
+      )}
       {stream.data?.kind === "energy" && (
         <div className="metrics">
           <Metric label="Power" value={formatQuantity("power", stream.data.power_kW, units?.heatflow)} />

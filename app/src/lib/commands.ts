@@ -4,7 +4,7 @@ import { useApp, type Alignment } from "../state/store";
 export interface Command {
   id: string;
   label: string;
-  group: "File" | "Edit" | "Arrange" | "Solve" | "View";
+  group: "File" | "Edit" | "Arrange" | "Solve" | "Results" | "View";
   /** Shortcuts, e.g. "Mod+Z" (Mod is Ctrl, or Cmd on a Mac); the first is the one shown. */
   keys?: string[];
   /** Runs while the focus is in a text field too (save, open, solve, the palette). */
@@ -201,6 +201,42 @@ export function buildCommands(shell: ShellActions): Command[] {
       run: () => app().setAutoSolve(!app().autoSolve),
     },
 
+    {
+      id: "results.streams",
+      label: "Stream table",
+      group: "Results",
+      keys: ["Mod+Shift+T"],
+      enabled: hasFlowsheet,
+      run: () => app().setBottomTab("streams"),
+    },
+    {
+      id: "results.phase",
+      label: "Phase envelope…",
+      group: "Results",
+      enabled: hasFlowsheet,
+      run: () => {
+        const chosen = app().graph?.nodes.find(
+          (n) => n.id === app().selection && n.type === "MaterialStream",
+        );
+        app().openAnalysis({ tab: "phase", streamId: chosen?.id });
+      },
+    },
+    {
+      id: "results.binary",
+      label: "Binary envelope…",
+      group: "Results",
+      enabled: hasFlowsheet,
+      run: () => app().openAnalysis({ tab: "binary" }),
+    },
+    {
+      id: "results.report",
+      label: "Report…",
+      group: "Results",
+      keys: ["Mod+P"],
+      global: true,
+      enabled: hasFlowsheet,
+      run: () => app().openReport(true),
+    },
     {
       id: "view.palette",
       label: "Command palette",

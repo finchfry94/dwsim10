@@ -1,5 +1,7 @@
 import {
+  ChartSpline,
   Command,
+  FileText,
   FilePlus2,
   FlaskConical,
   FolderOpen,
@@ -154,6 +156,24 @@ export function Toolbar({
           />
           Auto
         </label>
+        <button
+          className="btn"
+          onClick={() => useApp.getState().openAnalysis({ tab: "phase" })}
+          disabled={!has}
+          title="Phase and binary envelopes"
+          data-testid="analysis"
+        >
+          <ChartSpline size={16} /> Analysis
+        </button>
+        <button
+          className="btn"
+          onClick={() => useApp.getState().openReport(true)}
+          disabled={!has}
+          title={`Report (${keyLabel("Mod+P")})`}
+          data-testid="report"
+        >
+          <FileText size={16} /> Report
+        </button>
         <button
           className="btn"
           onClick={() => void autoLayout()}

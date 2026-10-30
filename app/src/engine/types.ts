@@ -345,3 +345,34 @@ export interface SampleFile {
   name: string;
   path: string;
 }
+
+/** A chart the engine computed: one x and one y axis, line and point series in display units. */
+export interface ChartData {
+  title: string;
+  subtitle?: string;
+  x: { label: string; unit: string | null };
+  y: { label: string; unit: string | null };
+  series: { name: string; kind: "line" | "point"; x: number[]; y: number[] }[];
+  /** The engine's text output for the calculation. */
+  text?: string;
+  criticalPoint?: {
+    temperature: number;
+    pressure: number;
+    volume: number | null;
+    units: { temperature: string; pressure: string; volume: string };
+  };
+}
+
+export interface StreamTable {
+  streams: { id: string; tag: string; calculated: boolean }[];
+  rows: {
+    key: string;
+    label: string;
+    unit: string | null;
+    group: "conditions" | "moleFractions" | "massFractions";
+    values: Record<string, number | null>;
+  }[];
+  basis: "mole" | "mass";
+}
+
+export type EnvelopeDiagram = "PT" | "PH" | "PS" | "TH" | "TS" | "VT" | "VP";

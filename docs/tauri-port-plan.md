@@ -16,10 +16,11 @@ Tauri shell and the React app open, edit, solve and save flowsheets, and set a n
 from scratch (milestone M1 below), and every unit operation has an editor generated from the
 engine (M2), rigorous columns and the Adjust and Spec pickers included (M2b), and editing is
 comfortable (M3: undo, copy/paste, multi-select and alignment, command palette, cancel solve,
-diagnostics). See `app/README.md`.
+diagnostics), and results can be read and analysed (M4a: stream table, phase and binary envelopes,
+report). See `app/README.md`.
 
-Front-end milestones still to do: M3 leftovers (annotations, per-object solve progress), M4 results
-and analysis (stream tables, reports, charts, sizing tools), M5 advanced tools (reactions,
+Front-end milestones still to do: M3 leftovers (annotations, per-object solve progress), M4b results
+and analysis (sizing and safety utilities, pipe profiles, McCabe–Thiele, distillation curves, Excel export), M5 advanced tools (reactions,
 sensitivity, optimizer, dynamics, scripting, spreadsheet, compound tools), M6 polish and shipping.
 Simulation settings (solver mode, tolerances) from M1 are also still to do.
 

@@ -5,7 +5,8 @@
 //
 //   NODE_PATH=$(npm root -g) node e2e/smoke.cjs [screenshot-dir]
 //
-// Opens the Cavett problem, solves it, colours streams by temperature and inspects a stream;
+// Opens the Cavett problem, solves it, colours streams by temperature and inspects a stream, its
+// row in the stream table, its phase envelope and the report;
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
 // auto-solve brings the product to 80 °C. Last, opens the extractive distillation sample, changes
@@ -43,6 +44,32 @@ async function main() {
   await page.locator('[data-testid="node-4"]').click();
   await page.getByTestId("composition").waitFor({ timeout: 20_000 });
   await shot("cavett-solved");
+
+  // Results: the stream table, a phase envelope from a stream, and the report (of the selected
+  // stream only, as it opens with the selection).
+  await page.getByTestId("tab-streams").click();
+  const streamTable = page.getByTestId("stream-table");
+  await streamTable.locator("thead th").nth(20).waitFor();
+  assert.equal(await streamTable.locator("thead th").count(), 21, "a column per stream");
+  await page.getByTestId("phase-envelope").click();
+  const analysis = page.getByRole("dialog", { name: "Analysis" });
+  await analysis.getByTestId("xy-chart").waitFor({ timeout: 60_000 });
+  assert.match(await analysis.getByTestId("critical-point").innerText(), /Critical point: \d+(\.\d+)? K/);
+  await shot("phase-envelope");
+  await page.keyboard.press("Escape");
+  await analysis.waitFor({ state: "detached" });
+  await page.getByTestId("report").click();
+  await page
+    .frameLocator('[data-testid="report-frame"]')
+    .getByRole("heading", { name: "4 (Material Stream)", exact: true })
+    .waitFor({ timeout: 60_000 })
+    .catch(async (e) => {
+      await shot("report-stuck");
+      throw e;
+    });
+  await page.keyboard.press("Escape");
+  await page.getByRole("dialog", { name: "Report" }).waitFor({ state: "detached" });
+  await page.getByTestId("tab-log").click();
 
   // A new simulation built from scratch: setup wizard, feed -> heater -> product, solved.
   await page.getByRole("button", { name: "New", exact: true }).click();

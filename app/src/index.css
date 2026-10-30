@@ -30,6 +30,9 @@
   --chart-1: #2f6fde;
   --chart-2: #e4572e;
   --chart-3: #1baf7a;
+  --chart-4: #eda100;
+  --chart-5: #e87ba4;
+  --chart-6: #6250d6;
 
   color-scheme: light;
 }
@@ -62,6 +65,9 @@
   --chart-1: #4f86f0;
   --chart-2: #ec6236;
   --chart-3: #199e70;
+  --chart-4: #c98500;
+  --chart-5: #d55181;
+  --chart-6: #9085e9;
 
   color-scheme: dark;
 }
@@ -1510,4 +1516,132 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Results: stream table, analysis and report dialogs, XY chart */
+.stream-table {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.stream-table-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.stream-table-scroll {
+  flex: 1;
+  overflow: auto;
+}
+.stream-table .sticky-col {
+  position: sticky;
+  left: 0;
+  background: var(--surface);
+  text-align: left;
+  white-space: nowrap;
+  z-index: 1;
+}
+.stream-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  z-index: 2;
+}
+.stream-table thead th.sticky-col {
+  z-index: 3;
+}
+.stream-table .group-row th {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 8px;
+}
+.link.is-pending {
+  color: var(--stream-pending);
+}
+.analysis-dialog {
+  width: min(900px, calc(100vw - 32px));
+  max-height: 92vh;
+}
+.analysis-body {
+  display: grid;
+  gap: 10px;
+  padding-top: 8px;
+}
+.analysis-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+}
+.analysis-controls .field {
+  min-width: 150px;
+}
+.is-stale {
+  opacity: 0.55;
+}
+.xy-chart {
+  margin: 0;
+}
+.xy-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.xy-title {
+  font-weight: 600;
+  font-size: 13px;
+}
+.xy-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.xy-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.chart-axis {
+  font-size: 11px;
+  fill: var(--text-muted);
+}
+.chart-crosshair line {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+}
+.report-dialog {
+  width: min(1000px, calc(100vw - 32px));
+  height: 90vh;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.report-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 6px 0;
+  font-size: 12px;
+}
+.report-frame {
+  flex: 1;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
 }

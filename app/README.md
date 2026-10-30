@@ -48,6 +48,9 @@ don't change.
 | `object.properties/setProperty/rename` | an object's raw property list, in the flowsheet's units |
 | `stream.get` | a stream's state and composition by phase (SI) |
 | `solve.run`, `solve.check` | solve (cancellable), and diagnose without solving |
+| `streams.table` | every material stream's conditions and composition, in the flowsheet's units |
+| `report.html` | the simulation report as a page, from the engine's report builder |
+| `analysis.phaseEnvelope`, `analysis.binaryEnvelope` | phase envelopes (PT, PH, PS, TH, TS, VT, VP) and Txy/Pxy envelopes as chart series (cancellable) |
 
 Notifications: `engine/ready`, `engine/log`, `solve/started`, `solve/finished`. The Rust client
 adds `engine/stderr` and `engine/exited`.
@@ -111,10 +114,12 @@ cases (U01–U08, A04) and the distillation cases (A01, F11) of `tests/DWSIM.Val
 separate `dwsim-bridge` process over stdio, setting unit operations up through their editors; the
 column duties must equal the in-process run. `EditorSchemaTests` checks every catalogued editor,
 the column editors on three reference columns, and the Adjust and Spec pickers. `EditingTests`
-covers undo and redo, copy and paste, batch edits and the inserted stream.
+covers undo and redo, copy and paste, batch edits and the inserted stream. `AnalysisTests` checks the
+stream table against each stream, the report, a methane/ethane phase envelope and the ethanol/water
+azeotrope on a Txy diagram.
 
 With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` drives the UI end
-to end: the Cavett problem, a new heater flowsheet (with delete and undo, duplicate, a check from
+to end: the Cavett problem (with its stream table, a phase envelope and the report), a new heater flowsheet (with delete and undo, duplicate, a check from
 the command palette), a column whose reflux ratio is changed in its editor, and a cancelled solve.
 
 ### Bundling
@@ -135,7 +140,9 @@ operation has an editor generated from the engine, including rigorous columns an
 Spec variable pickers. Editing works as in a drawing tool: undo and redo, copy, paste and duplicate,
 multi-select with alignment, rotation and flips, a command palette (Ctrl+K), a shortcut sheet (?),
 cancel solve, a diagnostics tab with jump-to-object, Save As, recent files and an unsaved-changes
-guard. Next: results and analysis (M4).
+guard. Results: a stream table (CSV export), phase and binary envelopes charted with their data,
+and the engine's report (print to PDF, save as HTML). Next: sizing and safety utilities, pipe
+profiles and McCabe–Thiele (M4b).
 
 ### How undo works
 

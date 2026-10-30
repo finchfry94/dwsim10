@@ -14,6 +14,9 @@ import type {
   StreamSpecification,
   UnitSystem,
   VariableOption,
+  ChartData,
+  EnvelopeDiagram,
+  StreamTable,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -98,5 +101,31 @@ export const engine = {
   solve: (flowsheetId: string, requestId?: string) =>
     call<SolveResult>("solve.run", { flowsheetId }, requestId),
   cancel: (requestId: string) => transport.cancel(requestId),
+  streamTable: (flowsheetId: string, basis: "mole" | "mass" = "mole") =>
+    call<StreamTable>("streams.table", { flowsheetId, basis }),
+  report: (flowsheetId: string, objectIds?: string[], sections?: Record<string, boolean>) =>
+    call<{ html: string }>("report.html", { flowsheetId, objectIds, sections }),
+  phaseEnvelope: (
+    flowsheetId: string,
+    streamId: string,
+    diagram: EnvelopeDiagram,
+    options?: Record<string, unknown>,
+    requestId?: string,
+  ) => call<ChartData>("analysis.phaseEnvelope", { flowsheetId, streamId, diagram, options }, requestId),
+  binaryEnvelope: (
+    flowsheetId: string,
+    params: {
+      compound1: string;
+      compound2: string;
+      diagram: "Txy" | "Pxy";
+      packageId?: string;
+      temperature?: number;
+      pressure?: number;
+      lle?: boolean;
+      sle?: boolean;
+      critical?: boolean;
+    },
+    requestId?: string,
+  ) => call<ChartData>("analysis.binaryEnvelope", { flowsheetId, ...params }, requestId),
   check: (flowsheetId: string) => call<Finding[]>("solve.check", { flowsheetId }),
 };
