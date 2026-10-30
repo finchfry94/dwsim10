@@ -55,16 +55,30 @@ namespace DWSIM.Automation
                     {
                         var sdict = Newtonsoft.Json.JsonConvert.DeserializeObject<Dictionary<string, string>>(rgfdata);
                         if (sdict == null || sdict.Count == 0) return;
-                        Spreadsheet.RemoveWorksheet(0);
-                        foreach (var item in sdict)
+                        // Loading recalculates the formulas; point them at this flowsheet first. Opening
+                        // a file must not write the simulation, and SETPROPVAL's scratch cell would
+                        // change ReoGrid's formula table while the load walks it, so SETPROPVAL waits
+                        // for the first recalculation after the load.
+                        SetCustomSpreadsheetFunctions();
+                        var setter = FormulaExtension.CustomFunctions["SETPROPVAL"];
+                        FormulaExtension.CustomFunctions["SETPROPVAL"] = (cell, args) => "NOT CALCULATED";
+                        try
                         {
-                            var tmpfile = SharedClasses.Utility.GetTempFileName();
-                            var sheet = Spreadsheet.CreateWorksheet(item.Key);
-                            Spreadsheet.Worksheets.Add(sheet);
-                            var xmldoc = Newtonsoft.Json.JsonConvert.DeserializeXmlNode(DefaultSheetFont(item.Value));
-                            xmldoc.Save(tmpfile);
-                            sheet.LoadRGF(tmpfile);
-                            File.Delete(tmpfile);
+                            Spreadsheet.RemoveWorksheet(0);
+                            foreach (var item in sdict)
+                            {
+                                var tmpfile = SharedClasses.Utility.GetTempFileName();
+                                var sheet = Spreadsheet.CreateWorksheet(item.Key);
+                                Spreadsheet.Worksheets.Add(sheet);
+                                var xmldoc = Newtonsoft.Json.JsonConvert.DeserializeXmlNode(DefaultSheetFont(item.Value));
+                                xmldoc.Save(tmpfile);
+                                sheet.LoadRGF(tmpfile);
+                                File.Delete(tmpfile);
+                            }
+                        }
+                        finally
+                        {
+                            FormulaExtension.CustomFunctions["SETPROPVAL"] = setter;
                         }
                     }
                 }
@@ -178,6 +192,16 @@ namespace DWSIM.Automation
 
             return list;
         }
+
+        /// <summary>
+        /// Points the spreadsheet functions (GETPROPVAL, SETPROPVAL and the rest) at this flowsheet.
+        /// ReoGrid keeps them in one process-wide table, so a host with several flowsheets open calls
+        /// this before recalculating one of them.
+        /// </summary>
+        public void ActivateSpreadsheetFunctions() => SetCustomSpreadsheetFunctions();
+
+        /// <summary>The flowsheet's workbook.</summary>
+        public IWorkbook SpreadsheetWorkbook => Spreadsheet;
 
         private void SetCustomSpreadsheetFunctions()
         {

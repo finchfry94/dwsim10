@@ -75,12 +75,15 @@ namespace DWSIM.Bridge.Methods
             var session = _sessions.Add(flowsheet, path);
             var id = session.Id;
             session.Attach = s => s.Inner.SetMessageListener((text, type) =>
+            {
+                s.Captured?.Add(text);
                 _notifier.Notify("engine/log", new JObject
                 {
                     ["flowsheetId"] = id,
                     ["level"] = Level(type),
                     ["text"] = text
-                }));
+                });
+            });
             session.Attach(session);
             lock (session.Gate) return Summary(session);
         }

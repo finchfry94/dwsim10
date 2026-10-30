@@ -37,6 +37,8 @@ namespace DWSIM.Bridge.Methods
                 using (cancellation.Register(() => Settings.TaskCancellationTokenSource?.Cancel()))
                 {
                     var errors = session.Flowsheet.TrySolve();
+                    // The spreadsheet's GETPROPVAL cells follow the new results.
+                    try { SpreadsheetMethods.Recalculate(session); } catch { /* a bad formula shows in its cell */ }
                     var result = new JObject
                     {
                         ["flowsheetId"] = flowsheetId,

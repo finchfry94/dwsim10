@@ -24,6 +24,9 @@ namespace DWSIM.Bridge
 
         public Fluent Flowsheet { get; private set; }
 
+        /// <summary>While set, the log lines the flowsheet writes are also kept here (a script run returns them).</summary>
+        internal List<string> Captured { get; set; }
+
         /// <summary>Wires a flowsheet to the session (its log listener); run again when undo replaces it.</summary>
         internal Action<Session> Attach { get; set; }
 
