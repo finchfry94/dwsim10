@@ -17,6 +17,8 @@ import type {
   ChartData,
   EnvelopeDiagram,
   StreamTable,
+  ToolInfo,
+  ToolRun,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -128,4 +130,17 @@ export const engine = {
     requestId?: string,
   ) => call<ChartData>("analysis.binaryEnvelope", { flowsheetId, ...params }, requestId),
   check: (flowsheetId: string) => call<Finding[]>("solve.check", { flowsheetId }),
+
+  tools: (flowsheetId: string) => call<ToolInfo[]>("tools.list", { flowsheetId }),
+  /** Numbers are in each field's unit, or in `units[id]` when the user picked another. */
+  runTool: (
+    flowsheetId: string,
+    tool: string,
+    inputs: Record<string, unknown>,
+    units: Record<string, string>,
+    requestId?: string,
+  ) => call<ToolRun>("tools.run", { flowsheetId, tool, inputs, units }, requestId),
+  /** The stream table and every object's results as an .xlsx workbook, base64. */
+  exportExcel: (flowsheetId: string) =>
+    call<{ name: string; base64: string }>("export.xlsx", { flowsheetId }),
 };

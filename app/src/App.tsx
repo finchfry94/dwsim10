@@ -7,6 +7,7 @@ import { buildCommands, commandFor, type ShellActions } from "./lib/commands";
 import { CommandPalette, ShortcutSheet } from "./panels/CommandPalette";
 import { AnalysisDialog } from "./panels/AnalysisDialog";
 import { ReportDialog } from "./panels/ReportDialog";
+import { ToolsDialog } from "./panels/ToolsDialog";
 import { transport } from "./engine/transport";
 import type { SampleFile } from "./engine/types";
 import { pickFileToOpen, pickFileToSave } from "./panels/files";
@@ -80,8 +81,8 @@ export function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { palette, shortcuts, setup: setupOpen, analysis, report } = useApp.getState();
-      if (palette || shortcuts || setupOpen || analysis || report || e.defaultPrevented) return; // a dialog has the keyboard
+      const { palette, shortcuts, setup: setupOpen, analysis, report, tools } = useApp.getState();
+      if (palette || shortcuts || setupOpen || analysis || report || tools || e.defaultPrevented) return; // a dialog has the keyboard
       // React Flow deletes the selection itself, connections included.
       if ((e.key === "Delete" || e.key === "Backspace") && !(e.target instanceof HTMLInputElement)) return;
       const command = commandFor(e, commands);
@@ -145,6 +146,7 @@ export function App() {
       <CommandPalette commands={commands} />
       <AnalysisDialog />
       <ReportDialog />
+      <ToolsDialog />
       <ShortcutSheet commands={commands} />
       {setup && flowsheet && <SetupDialog mode={setup} onClose={() => useApp.getState().openSetup(null)} />}
       {dialog && (

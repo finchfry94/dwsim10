@@ -206,7 +206,8 @@ export function XYChart({ chart }: { chart: ChartData }) {
               strokeLinejoin="round"
             />
           ))}
-          {lines.length <= 4 &&
+          {lines.length >= 2 &&
+            lines.length <= 4 &&
             labelsFit(lines.map((s) => ({ x: px(s.x[s.x.length - 1]!), y: py(s.y[s.y.length - 1]!) }))) &&
             lines.map((s) => {
               const last = s.x.length - 1;

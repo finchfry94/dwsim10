@@ -160,7 +160,7 @@ function Section({
   );
 }
 
-function FieldRow({
+export function FieldRow({
   flowsheetId,
   field,
   disabled,

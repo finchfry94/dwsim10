@@ -6,7 +6,8 @@
 //   NODE_PATH=$(npm root -g) node e2e/smoke.cjs [screenshot-dir]
 //
 // Opens the Cavett problem, solves it, colours streams by temperature and inspects a stream, its
-// row in the stream table, its phase envelope and the report;
+// row in the stream table, the Excel export, its hydrate and critical-point tools, its phase
+// envelope and the report;
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
 // auto-solve brings the product to 80 °C. Last, opens the extractive distillation sample, changes
@@ -51,6 +52,25 @@ async function main() {
   const streamTable = page.getByTestId("stream-table");
   await streamTable.locator("thead th").nth(20).waitFor();
   assert.equal(await streamTable.locator("thead th").count(), 21, "a column per stream");
+  const download = page.waitForEvent("download");
+  await page.getByTestId("export-excel").click();
+  assert.match((await download).suggestedFilename(), /\.xlsx$/);
+
+  // Engineering tools on the selected stream: hydrates, then its true critical point.
+  await page.getByTestId("stream-tools").click();
+  const tools = page.getByRole("dialog", { name: "Tools" });
+  await tools.getByTestId("run-tool").click();
+  await tools
+    .getByTestId("tool-result")
+    .getByText("No hydrates form", { exact: false })
+    .waitFor({ timeout: 60_000 });
+  await tools.getByTestId("tool-criticalPoint").click();
+  await tools.getByTestId("run-tool").click();
+  await tools.getByText(/Critical point at \d+(\.\d+)? K/).waitFor({ timeout: 60_000 });
+  await shot("tools");
+  await page.keyboard.press("Escape");
+  await tools.waitFor({ state: "detached" });
+
   await page.getByTestId("phase-envelope").click();
   const analysis = page.getByRole("dialog", { name: "Analysis" });
   await analysis.getByTestId("xy-chart").waitFor({ timeout: 60_000 });

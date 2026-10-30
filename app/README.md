@@ -51,6 +51,8 @@ don't change.
 | `streams.table` | every material stream's conditions and composition, in the flowsheet's units |
 | `report.html` | the simulation report as a page, from the engine's report builder |
 | `analysis.phaseEnvelope`, `analysis.binaryEnvelope` | phase envelopes (PT, PH, PS, TH, TS, VT, VP) and Txy/Pxy envelopes as chart series (cancellable) |
+| `tools.list`, `tools.run` | the engineering tools (hydrates, PSV and separator sizing, depressurization, true critical point, distillation curves, McCabe–Thiele): inputs as schema fields, results as sections, charts and tables (cancellable) |
+| `export.xlsx` | the stream table and every object's results as an Excel workbook (base64) |
 
 Notifications: `engine/ready`, `engine/log`, `solve/started`, `solve/finished`. The Rust client
 adds `engine/stderr` and `engine/exited`.
@@ -116,10 +118,18 @@ column duties must equal the in-process run. `EditorSchemaTests` checks every ca
 the column editors on three reference columns, and the Adjust and Spec pickers. `EditingTests`
 covers undo and redo, copy and paste, batch edits and the inserted stream. `AnalysisTests` checks the
 stream table against each stream, the report, a methane/ethane phase envelope and the ethanol/water
-azeotrope on a Txy diagram.
+azeotrope on a Txy diagram. `ToolTests` runs every tool (hydrates against a direct call of the
+engine's calculator, the others against sanity ranges), a solved pipe's profile and the Excel
+export.
+
+Each tool is one class in `tools/DWSIM.Bridge/Tools/` that wraps the engine class its Avalonia
+window drives: it lists its inputs as schema fields (defaults from the flowsheet) and answers with
+read-only sections, charts and tables. The frontend has one Tools dialog that renders any of them,
+so adding a tool is bridge-only work.
 
 With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` drives the UI end
-to end: the Cavett problem (with its stream table, a phase envelope and the report), a new heater flowsheet (with delete and undo, duplicate, a check from
+to end: the Cavett problem (with its stream table, the Excel export, the hydrate and critical-point
+tools on a stream, a phase envelope and the report), a new heater flowsheet (with delete and undo, duplicate, a check from
 the command palette), a column whose reflux ratio is changed in its editor, and a cancelled solve.
 
 ### Bundling
@@ -141,8 +151,10 @@ Spec variable pickers. Editing works as in a drawing tool: undo and redo, copy, 
 multi-select with alignment, rotation and flips, a command palette (Ctrl+K), a shortcut sheet (?),
 cancel solve, a diagnostics tab with jump-to-object, Save As, recent files and an unsaved-changes
 guard. Results: a stream table (CSV export), phase and binary envelopes charted with their data,
-and the engine's report (print to PDF, save as HTML). Next: sizing and safety utilities, pipe
-profiles and McCabe–Thiele (M4b).
+the engine's report (print to PDF, save as HTML), an Excel export, pipe profiles charted along the
+length, and a Tools dialog: natural gas hydrates, relief valve (API 520) and separator sizing,
+vessel depressurization, true critical point, distillation curves and McCabe–Thiele. Next: M5's
+advanced tools.
 
 ### How undo works
 

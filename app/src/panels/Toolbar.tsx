@@ -16,6 +16,7 @@ import {
   Sun,
   Tags,
   Undo2,
+  Wrench,
 } from "lucide-react";
 import { keyLabel } from "../lib/commands";
 import { COLOR_MODES, type ColorMode } from "../canvas/coloring";
@@ -164,6 +165,18 @@ export function Toolbar({
           data-testid="analysis"
         >
           <ChartSpline size={16} /> Analysis
+        </button>
+        <button
+          className="btn"
+          onClick={() => {
+            const { selection, openTools } = useApp.getState();
+            openTools({ objectId: selection ?? undefined });
+          }}
+          disabled={!has}
+          title="Sizing, hydrates, critical point, blowdown, distillation curves, McCabe–Thiele"
+          data-testid="tools"
+        >
+          <Wrench size={16} /> Tools
         </button>
         <button
           className="btn"

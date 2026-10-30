@@ -28,9 +28,30 @@ export function niceTicks(lo: number, hi: number, count = 4): number[] {
   return ticks;
 }
 
+/** Significant digits that tell neighbouring ticks apart (299.998 and 300 need six, not four). */
+export function tickDigits(ticks: number[]): number {
+  if (ticks.length < 2) return 4;
+  const step = Math.abs(ticks[1]! - ticks[0]!);
+  const big = Math.max(...ticks.map(Math.abs));
+  if (!(step > 0) || !(big > 0)) return 4;
+  return Math.min(10, Math.max(4, Math.floor(Math.log10(big)) - Math.floor(Math.log10(step) + 1e-9) + 1));
+}
+
 /**
- * Line charts of a results table's chart columns against its x column (the stage), one
- * panel per unit so two scales never share an axis. Hovering shows every value at a stage.
+ * The y range a panel spans. A series flat to within a few parts per million (a pipe's
+ * temperature to the third decimal) is shown flat, not stretched until its noise fills the plot.
+ */
+export function yRange(values: number[]): [number, number] {
+  const lo = Math.min(...values);
+  const hi = Math.max(...values);
+  const mid = (Math.abs(lo) + Math.abs(hi)) / 2;
+  return hi - lo <= mid * 1e-5 ? [(lo + hi) / 2, (lo + hi) / 2] : [lo, hi];
+}
+
+/**
+ * Line charts of a results table's chart columns against its x column, one panel per unit so
+ * two scales never share an axis. A text x (stage names) spaces the rows evenly; a numeric x
+ * (a pipe's length) places them by value. Hovering shows every value at a row.
  */
 export function ProfileChart({ field }: { field: TableField }) {
   if (!field.chart || field.rows.length < 2) return null;
@@ -63,10 +84,19 @@ function Panel({ field, x, keys, unit }: { field: TableField; x: string; keys: s
     .flatMap((k) => field.rows.map((_, i) => value(i, k)))
     .filter((v): v is number => v !== null);
   if (values.length === 0) return null;
-  const ticks = niceTicks(Math.min(...values), Math.max(...values));
+  const ticks = niceTicks(...yRange(values));
+  const digits = tickDigits(ticks);
   const yLo = ticks[0] ?? Math.min(...values);
   const yHi = ticks[ticks.length - 1] ?? Math.max(...values);
-  const px = (i: number) => PAD.left + (i / (n - 1)) * (W - PAD.left - PAD.right);
+
+  // A numeric x places each row at its value; otherwise rows are evenly spaced stages.
+  const xColumn = field.columns.find((c) => c.key === x);
+  const xs = field.rows.map((r) => r[x]);
+  const numeric = xColumn?.kind === "number" && xs.every((v) => typeof v === "number" && Number.isFinite(v));
+  const xAt = (i: number) => (numeric ? (xs[i] as number) : i);
+  const xLo = numeric ? Math.min(...(xs as number[])) : 0;
+  const xHi = numeric ? Math.max(...(xs as number[])) : n - 1;
+  const px = (i: number) => PAD.left + ((xAt(i) - xLo) / (xHi - xLo || 1)) * (W - PAD.left - PAD.right);
   const py = (v: number) => PAD.top + (1 - (v - yLo) / (yHi - yLo || 1)) * (H - PAD.top - PAD.bottom);
   const color = (j: number) => (keys.length === 1 ? "var(--text)" : SERIES[j % SERIES.length]);
   const path = (key: string) => {
@@ -83,14 +113,23 @@ function Panel({ field, x, keys, unit }: { field: TableField; x: string; keys: s
     });
     return d;
   };
-  const xTicks = [...new Set([0, Math.round((n - 1) / 2), n - 1])];
+  const xTicks: { at: number; label: string }[] = numeric
+    ? niceTicks(xLo, xHi, 4)
+        .filter((t) => t >= xLo - 1e-9 && t <= xHi + 1e-9)
+        .map((t) => ({
+          at: PAD.left + ((t - xLo) / (xHi - xLo || 1)) * (W - PAD.left - PAD.right),
+          label: formatNumber(t, 4),
+        }))
+    : [...new Set([0, Math.round((n - 1) / 2), n - 1])].map((i) => ({ at: px(i), label: String(i + 1) }));
+  const xTitle = numeric ? xColumn!.label + (xColumn!.unit ? ` (${unitLabel(xColumn!.unit)})` : "") : "Stage";
   const title = keys.map(label).join(", ") + (unit ? ` (${unitLabel(unit)})` : "");
 
   const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
     const box = e.currentTarget.getBoundingClientRect();
     const sx = ((e.clientX - box.left) / box.width) * W;
-    const i = Math.round(((sx - PAD.left) / (W - PAD.left - PAD.right)) * (n - 1));
-    setHover(Math.max(0, Math.min(n - 1, i)));
+    let best = 0;
+    for (let i = 1; i < n; i++) if (Math.abs(px(i) - sx) < Math.abs(px(best) - sx)) best = i;
+    setHover(best);
   };
 
   return (
@@ -112,7 +151,7 @@ function Panel({ field, x, keys, unit }: { field: TableField; x: string; keys: s
         <svg
           viewBox={`0 0 ${W} ${H}`}
           role="img"
-          aria-label={`${title} against stage`}
+          aria-label={`${title} against ${xTitle.toLowerCase()}`}
           onMouseMove={onMove}
           onMouseLeave={() => setHover(null)}
         >
@@ -126,13 +165,13 @@ function Panel({ field, x, keys, unit }: { field: TableField; x: string; keys: s
                 textAnchor="end"
                 dominantBaseline="middle"
               >
-                {formatNumber(t, 4)}
+                {formatNumber(t, digits)}
               </text>
             </g>
           ))}
-          {xTicks.map((i) => (
-            <text key={i} x={px(i)} y={H - 6} className="chart-tick" textAnchor="middle">
-              {i + 1}
+          {xTicks.map((t) => (
+            <text key={t.at} x={t.at} y={H - 6} className="chart-tick" textAnchor="middle">
+              {t.label}
             </text>
           ))}
           {hover !== null && (
@@ -184,11 +223,13 @@ function Panel({ field, x, keys, unit }: { field: TableField; x: string; keys: s
             role="status"
             style={{
               left: `${(px(hover) / W) * 100}%`,
-              transform: hover > n / 2 ? "translateX(-105%)" : "translateX(5%)",
+              transform: px(hover) > W / 2 ? "translateX(-105%)" : "translateX(5%)",
             }}
           >
             <div className="chart-tooltip-title">
-              {String(field.rows[hover]?.[x] ?? `Stage ${hover + 1}`)}
+              {numeric
+                ? `${xColumn!.label} ${formatNumber(xAt(hover), 5)} ${xColumn!.unit ? unitLabel(xColumn!.unit) : ""}`
+                : String(field.rows[hover]?.[x] ?? `Stage ${hover + 1}`)}
             </div>
             {keys.map((k, j) => (
               <div key={k} className="chart-tooltip-row">
@@ -203,7 +244,7 @@ function Panel({ field, x, keys, unit }: { field: TableField; x: string; keys: s
           </div>
         )}
       </div>
-      <div className="chart-axis-title">Stage</div>
+      <div className="chart-axis-title">{xTitle}</div>
     </figure>
   );
 }

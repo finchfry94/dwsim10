@@ -1,4 +1,4 @@
-import { AlertTriangle, ChartSpline, Search } from "lucide-react";
+import { AlertTriangle, ChartSpline, Search, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { typeLabel } from "../canvas/catalog";
 import { ProcessSymbol } from "../canvas/symbols";
@@ -144,6 +144,16 @@ function ObjectInspector({
           data-testid="phase-envelope"
         >
           <ChartSpline size={14} /> Phase envelope
+        </button>
+      )}
+      {stream.data?.kind === "material" && (
+        <button
+          className="btn mt-2 ml-2"
+          onClick={() => useApp.getState().openTools({ objectId: node.id })}
+          title="Hydrates, critical point, blowdown and distillation curves for this stream"
+          data-testid="stream-tools"
+        >
+          <Wrench size={14} /> Tools
         </button>
       )}
       {stream.data?.kind === "energy" && (

@@ -363,6 +363,32 @@ export interface ChartData {
   };
 }
 
+/** An engineering tool: its inputs are schema fields with defaults from the flowsheet. */
+export interface ToolInfo {
+  id: string;
+  title: string;
+  group: string;
+  description: string;
+  inputs: SchemaField[];
+}
+
+export interface ToolTable {
+  title: string;
+  columns: string[];
+  rows: (string | number | null)[][];
+}
+
+/** What a tool run answers: read-only sections, charts already in display units, and tables. */
+export interface ToolRun {
+  tool: string;
+  title: string;
+  summary: string | null;
+  sections: SchemaSection[];
+  charts: ChartData[];
+  tables: ToolTable[];
+  warnings: string[];
+}
+
 export interface StreamTable {
   streams: { id: string; tag: string; calculated: boolean }[];
   rows: {

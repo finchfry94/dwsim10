@@ -33,6 +33,8 @@ interface AppState {
   /** The analysis dialog, on one of its tabs, for a stream when opened from one. */
   analysis: { tab: "phase" | "binary"; streamId?: string } | null;
   report: boolean;
+  /** The tools dialog, on a tool, with an object to apply it to when opened from one. */
+  tools: { toolId?: string; objectId?: string } | null;
   shortcuts: boolean;
   /** Recently opened or saved files, newest first. */
   recent: string[];
@@ -81,6 +83,7 @@ interface AppState {
   openPalette(open: boolean): void;
   openAnalysis(analysis: AppState["analysis"]): void;
   openReport(open: boolean): void;
+  openTools(tools: AppState["tools"]): void;
   openShortcuts(open: boolean): void;
   /** True when there are no unsaved changes, or the user agrees to lose them. */
   confirmDiscard(): boolean;
@@ -256,6 +259,7 @@ export const useApp = create<AppState>((set, get) => {
     bottomTab: "log",
     analysis: null,
     report: false,
+    tools: null,
     palette: false,
     shortcuts: false,
     recent: readRecent(),
@@ -482,6 +486,7 @@ export const useApp = create<AppState>((set, get) => {
     openPalette: (palette) => set({ palette }),
     openAnalysis: (analysis) => set({ analysis }),
     openReport: (report) => set({ report }),
+    openTools: (tools) => set({ tools }),
     openShortcuts: (shortcuts) => set({ shortcuts }),
 
     confirmDiscard() {

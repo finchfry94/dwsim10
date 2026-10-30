@@ -4,7 +4,7 @@ import { useApp, type Alignment } from "../state/store";
 export interface Command {
   id: string;
   label: string;
-  group: "File" | "Edit" | "Arrange" | "Solve" | "Results" | "View";
+  group: "File" | "Edit" | "Arrange" | "Solve" | "Results" | "Tools" | "View";
   /** Shortcuts, e.g. "Mod+Z" (Mod is Ctrl, or Cmd on a Mac); the first is the one shown. */
   keys?: string[];
   /** Runs while the focus is in a text field too (save, open, solve, the palette). */
@@ -227,6 +227,62 @@ export function buildCommands(shell: ShellActions): Command[] {
       group: "Results",
       enabled: hasFlowsheet,
       run: () => app().openAnalysis({ tab: "binary" }),
+    },
+    {
+      id: "tools.open",
+      label: "Tools…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.hydrates",
+      label: "Hydrate formation…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "hydrates", objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.psv",
+      label: "PSV sizing…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "psv", objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.separator",
+      label: "Separator sizing…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "separator", objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.depressurization",
+      label: "Vessel depressurization…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "depressurization", objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.criticalPoint",
+      label: "True critical point…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "criticalPoint", objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.distillationCurves",
+      label: "Distillation curves…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "distillationCurves", objectId: app().selection ?? undefined }),
+    },
+    {
+      id: "tools.mccabeThiele",
+      label: "McCabe–Thiele…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openTools({ toolId: "mccabeThiele", objectId: app().selection ?? undefined }),
     },
     {
       id: "results.report",

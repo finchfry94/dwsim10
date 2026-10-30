@@ -22,6 +22,19 @@ export function downloadText(name: string, text: string, type = "text/csv;charse
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/** Offers a base64-encoded file (a workbook from the engine) as a download. */
+export function downloadBase64(name: string, base64: string, type: string): void {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 /** A file name from a title: "Pressure/temperature diagram" -> "pressure-temperature-diagram". */
 export function fileName(title: string, ext: string): string {
   const base = title

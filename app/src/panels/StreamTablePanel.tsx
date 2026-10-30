@@ -1,9 +1,9 @@
-import { Download, RefreshCw } from "lucide-react";
+import { Download, FileSpreadsheet, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { engine } from "../engine/api";
 import { EngineError } from "../engine/transport";
 import type { StreamTable } from "../engine/types";
-import { downloadText, fileName, toCsv } from "../lib/csv";
+import { downloadBase64, downloadText, fileName, toCsv } from "../lib/csv";
 import { formatNumber, unitLabel } from "../lib/units";
 import { useApp } from "../state/store";
 
@@ -14,6 +14,8 @@ export function StreamTablePanel() {
   const [basis, setBasis] = useState<"mole" | "mass">("mole");
   const [table, setTable] = useState<StreamTable | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!flowsheet) return;
@@ -49,6 +51,23 @@ export function StreamTablePanel() {
     downloadText(fileName(`${flowsheet.name} streams`, "csv"), toCsv(rows));
   };
 
+  const exportExcel = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const file = await engine.exportExcel(flowsheet.id);
+      downloadBase64(
+        file.name,
+        file.base64,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      );
+    } catch (e) {
+      setExportError(EngineError.from(e).message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   let lastGroup = "";
   return (
     <div className="stream-table" data-testid="stream-table">
@@ -73,8 +92,18 @@ export function StreamTablePanel() {
           <button className="btn btn-ghost" onClick={exportCsv} data-testid="export-streams">
             <Download size={13} /> CSV
           </button>
+          <button
+            className="btn btn-ghost"
+            onClick={() => void exportExcel()}
+            disabled={exporting}
+            title="The stream table and every object's results, as an Excel workbook"
+            data-testid="export-excel"
+          >
+            <FileSpreadsheet size={13} /> {exporting ? "Exporting…" : "Excel"}
+          </button>
         </span>
       </div>
+      {exportError && <p className="callout callout-error">{exportError}</p>}
       <div className="table-scroll stream-table-scroll">
         <table className="grid-table">
           <thead>
