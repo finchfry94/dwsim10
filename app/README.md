@@ -33,7 +33,10 @@ don't change.
 |---|---|
 | `engine.info`, `engine.ping` | version, method list, object types |
 | `flowsheet.new/open/save/close/summary/list` | documents (`.dwxmz`, `.dwxml`) |
-| `graph.get/add/move/connect/disconnect/delete/autoLayout` | the flowsheet as nodes, ports and edges |
+| `graph.get/add/move/connect/disconnect/delete/autoLayout` | the flowsheet as nodes, ports and edges; connecting two unit operations inserts a stream |
+| `graph.moveMany/deleteMany/transform` | several objects at once; rotate and flip |
+| `graph.copy/paste` | the engine's clipboard XML, pasteable into any open flowsheet |
+| `edit.undo/redo` | step back and forth through edits; `graph.get` carries the history and the unsaved flag |
 | `compounds.search`, `propertyPackages.list` | what a simulation can be set up with |
 | `flowsheet.addCompounds/removeCompound` | the simulation's compounds (streams follow) |
 | `flowsheet.addPropertyPackage/removePropertyPackage` | its property packages, with flash settings |
@@ -107,11 +110,12 @@ results. `BridgeValidationTests` runs the thermodynamics cases (T01–T34) and t
 cases (U01–U08, A04) and the distillation cases (A01, F11) of `tests/DWSIM.Validation.Tests` in a
 separate `dwsim-bridge` process over stdio, setting unit operations up through their editors; the
 column duties must equal the in-process run. `EditorSchemaTests` checks every catalogued editor,
-the column editors on three reference columns, and the Adjust and Spec pickers.
+the column editors on three reference columns, and the Adjust and Spec pickers. `EditingTests`
+covers undo and redo, copy and paste, batch edits and the inserted stream.
 
 With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` drives the UI end
-to end: the Cavett problem, a new heater flowsheet, and a column whose reflux ratio is changed
-in its editor.
+to end: the Cavett problem, a new heater flowsheet (with delete and undo, duplicate, a check from
+the command palette), a column whose reflux ratio is changed in its editor, and a cancelled solve.
 
 ### Bundling
 
@@ -128,7 +132,18 @@ compressed. The `desktop` workflow builds all three platforms on a tag or on dem
 See [`docs/tauri-port-plan.md`](../docs/tauri-port-plan.md). A new simulation can be set up
 (wizard: compounds, property package, units), built, specified and solved, and every unit
 operation has an editor generated from the engine, including rigorous columns and the Adjust and
-Spec variable pickers. Next: editing comfort (M3).
+Spec variable pickers. Editing works as in a drawing tool: undo and redo, copy, paste and duplicate,
+multi-select with alignment, rotation and flips, a command palette (Ctrl+K), a shortcut sheet (?),
+cancel solve, a diagnostics tab with jump-to-object, Save As, recent files and an unsaved-changes
+guard. Next: results and analysis (M4).
+
+### How undo works
+
+Every edit through the bridge records the flowsheet as it was (`Session.Begin/Record`): the XML a
+save would write. Undo loads that XML the way a file is opened, into a fresh flowsheet that takes
+the session's place; the objects keep their ids, which the XML carries. The engine's own
+`RestoreSnapshot(All)` does not bring deleted objects back when headless, hence the reload. The
+history keeps the last 30 steps; a snapshot costs about 0.2 s on a 40-object flowsheet.
 
 ### How unit-operation editors are made
 

@@ -9,7 +9,8 @@
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
 // auto-solve brings the product to 80 °C. Last, opens the extractive distillation sample, changes
-// a column's reflux ratio in its editor and checks that the column re-solves.
+// a column's reflux ratio in its editor and checks that the column re-solves. Along the way it
+// deletes and undoes, duplicates, checks the flowsheet from the command palette and cancels a solve.
 
 const { chromium } = require("playwright");
 const assert = require("node:assert/strict");
@@ -123,6 +124,44 @@ async function main() {
   await editor.getByTestId("dof").waitFor();
   await shot("new-flowsheet");
 
+  // Editing comfort: delete the heater and undo it, duplicate it, check the flowsheet from the
+  // command palette.
+  const nodeCount = () => page.locator(".react-flow__node").count();
+  const edgeCount = () => page.locator(".react-flow__edge").count();
+  const heaterNode = page.locator(`[data-testid="node-${heater}"]`);
+  await heaterNode.click();
+  await page.getByTestId("selection-bar").waitFor();
+  await page.keyboard.press("Delete");
+  await page.waitForFunction(() => document.querySelectorAll(".react-flow__node").length === 3);
+  assert.equal(await edgeCount(), 0);
+  await page.getByTestId("undo").click();
+  await heaterNode.waitFor({ timeout: 30_000 });
+  await page.waitForFunction(() => document.querySelectorAll(".react-flow__edge").length === 3);
+  assert.equal(await nodeCount(), 4);
+
+  await heaterNode.click();
+  await page.keyboard.press("Control+d");
+  await page.waitForFunction(() => document.querySelectorAll(".react-flow__node").length === 5, null, {
+    timeout: 30_000,
+  });
+  await page.getByText("Copied 1 object.").waitFor();
+  await page.keyboard.press("Control+z");
+  await page.waitForFunction(() => document.querySelectorAll(".react-flow__node").length === 4, null, {
+    timeout: 30_000,
+  });
+
+  await page.keyboard.press("Control+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette.getByLabel("Search commands and objects").fill("check flow");
+  await palette.getByRole("option", { name: /Check the flowsheet/ }).waitFor();
+  await page.keyboard.press("Enter");
+  await palette.waitFor({ state: "detached", timeout: 10_000 }).catch(async (e) => {
+    await shot("palette-stuck");
+    throw e;
+  });
+  await page.getByTestId("findings").waitFor();
+  await shot("diagnostics");
+
   // A rigorous column: change the reflux ratio in its editor; auto-solve re-solves the column
   // and the condenser duty and stage profile follow.
   await page.goto(base);
@@ -152,6 +191,12 @@ async function main() {
   assert.notEqual(await duty.innerText(), dutyBefore);
   assert.equal(await reflux.inputValue(), "4");
   await shot("column");
+
+  // A solve can be cancelled: start one and stop it at once.
+  await page.getByTestId("solve").click();
+  await page.getByTestId("cancel-solve").click();
+  await page.getByTestId("solve").waitFor({ timeout: 60_000 });
+  await page.locator(".log-line").filter({ hasText: "Solve cancelled." }).waitFor({ timeout: 60_000 });
 
   if (errors.length) console.error("console errors:", JSON.stringify(errors, null, 1));
   assert.deepEqual(errors, []);

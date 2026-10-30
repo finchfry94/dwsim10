@@ -30,6 +30,19 @@ export const engine = {
   summary: (flowsheetId: string) => call<FlowsheetSummary>("flowsheet.summary", { flowsheetId }),
 
   graph: (flowsheetId: string) => call<Graph>("graph.get", { flowsheetId }),
+  undo: (flowsheetId: string) => call<Graph>("edit.undo", { flowsheetId }),
+  redo: (flowsheetId: string) => call<Graph>("edit.redo", { flowsheetId }),
+  moveMany: (flowsheetId: string, moves: { id: string; x: number; y: number }[]) =>
+    call<Graph>("graph.moveMany", { flowsheetId, moves }),
+  deleteMany: (flowsheetId: string, ids: string[]) => call<Graph>("graph.deleteMany", { flowsheetId, ids }),
+  transform: (
+    flowsheetId: string,
+    ids: string[],
+    change: { rotate?: number; flipH?: boolean; flipV?: boolean },
+  ) => call<Graph>("graph.transform", { flowsheetId, ids, ...change }),
+  copy: (flowsheetId: string, ids: string[]) =>
+    call<{ text: string; count: number }>("graph.copy", { flowsheetId, ids }),
+  paste: (flowsheetId: string, text: string) => call<Graph>("graph.paste", { flowsheetId, text }),
   addObject: (flowsheetId: string, type: string, x: number, y: number, tag?: string) =>
     call<GraphNode>("graph.add", { flowsheetId, type, x, y, tag }),
   moveObject: (flowsheetId: string, id: string, x: number, y: number) =>
@@ -81,6 +94,9 @@ export const engine = {
   convertUnits: (value: number, from: string, to: string) =>
     call<number>("units.convert", { value, from, to }),
 
-  solve: (flowsheetId: string) => call<SolveResult>("solve.run", { flowsheetId }),
+  /** Solves; a `requestId` lets {@link engine.cancel} stop it. */
+  solve: (flowsheetId: string, requestId?: string) =>
+    call<SolveResult>("solve.run", { flowsheetId }, requestId),
+  cancel: (requestId: string) => transport.cancel(requestId),
   check: (flowsheetId: string) => call<Finding[]>("solve.check", { flowsheetId }),
 };

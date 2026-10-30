@@ -15,6 +15,8 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react";
 import type { GraphNode, PortKind } from "../engine/types";
+import { engine } from "../engine/api";
+import { EngineError } from "../engine/transport";
 import { useApp } from "../state/store";
 import { streamColors } from "./coloring";
 import { ProcessNode, type ProcessFlowNode } from "./ProcessNode";
@@ -32,12 +34,13 @@ function Canvas() {
   const flowsheet = useApp((s) => s.flowsheet);
   const colorMode = useApp((s) => s.colorMode);
   const showStreamTags = useApp((s) => s.showStreamTags);
-  const selection = useApp((s) => s.selection);
-  const { select, moveObject, connect, deleteObject, addObject } = useApp.getState();
+  const selected = useApp((s) => s.selected);
+  const { select, setSelected, moveMany, connect, deleteSelected, addObject, log } = useApp.getState();
   const flow = useReactFlow();
 
   const colors = useMemo(() => streamColors(graph?.nodes ?? [], colorMode), [graph, colorMode]);
   const byId = useMemo(() => new Map((graph?.nodes ?? []).map((n) => [n.id, n])), [graph]);
+  const selectedSet = useMemo(() => new Set(selected), [selected]);
 
   const toFlowNode = useCallback(
     (o: GraphNode): ProcessFlowNode => ({
@@ -50,11 +53,11 @@ function Canvas() {
         showTag: showStreamTags,
         units: flowsheet?.unitSystem ?? undefined,
       },
-      selected: o.id === selection,
+      selected: selectedSet.has(o.id),
       width: o.width,
       height: o.height,
     }),
-    [colors, showStreamTags, flowsheet, selection],
+    [colors, showStreamTags, flowsheet, selectedSet],
   );
 
   const [nodes, setNodes] = useState<ProcessFlowNode[]>([]);
@@ -92,9 +95,17 @@ function Canvas() {
     [graph, byId, colors],
   );
 
+  // Bring an object into view when asked (the command palette, a diagnostics finding).
+  const focus = useApp((s) => s.focus);
+  useEffect(() => {
+    if (focus) void flow.fitView({ nodes: [{ id: focus.id }], padding: 1.2, duration: 250, maxZoom: 1.5 });
+  }, [focus, flow]);
+
   // Fit the view when another flowsheet is opened, not on every refresh.
   useEffect(() => {
-    if (flowsheet)
+    // An empty flowsheet has nothing to fit, and React Flow would hold the request until the
+    // first object is dropped, then move the view under the user's next drop.
+    if (flowsheet && (useApp.getState().graph?.nodes.length ?? 0) > 0)
       requestAnimationFrame(() => void flow.fitView({ padding: 0.12, duration: 200, maxZoom: 1.25 }));
   }, [flowsheet?.id, flow]);
 
@@ -113,6 +124,42 @@ function Canvas() {
   const onConnect = (c: Connection) => {
     if (c.sourceHandle && c.targetHandle) void connect(c.source, c.sourceHandle, c.target, c.targetHandle);
   };
+
+  /** Deleting objects removes their connections too; deleting a connection alone disconnects it. */
+  const onDelete = ({ nodes: gone, edges: cut }: { nodes: ProcessFlowNode[]; edges: Edge[] }) => {
+    if (gone.length > 0) {
+      setSelected(gone.map((n) => n.id));
+      void deleteSelected();
+      return;
+    }
+    const id = flowsheet?.id;
+    if (!id) return;
+    void (async () => {
+      for (const e of cut) {
+        try {
+          await engine.disconnect(id, e.source, e.target);
+        } catch (err) {
+          log("error", `Disconnect: ${EngineError.from(err).message}`);
+        }
+      }
+      await useApp.getState().afterEdit();
+    })();
+  };
+
+  // Stable handlers: React Flow re-syncs a changed handler into its store and fires the selection
+  // listener again, so an inline one loops.
+  const onSelectionChange = useCallback(
+    ({ nodes: chosen }: { nodes: ProcessFlowNode[] }) => setSelected(chosen.map((n) => n.id)),
+    [setSelected],
+  );
+  const onNodeDragStop = useCallback(
+    (_: unknown, __: unknown, dragged: ProcessFlowNode[]) =>
+      void moveMany(
+        dragged.map((n) => ({ id: n.id, x: Math.round(n.position.x), y: Math.round(n.position.y) })),
+      ),
+    [moveMany],
+  );
+  const onPaneClick = useCallback(() => select(null), [select]);
 
   const onDrop = (event: DragEvent) => {
     event.preventDefault();
@@ -137,13 +184,16 @@ function Canvas() {
         edges={edges}
         nodeTypes={nodeTypes}
         onNodesChange={onNodesChange}
-        onNodeClick={(_, n) => select(n.id)}
-        onPaneClick={() => select(null)}
-        onNodeDragStop={(_, n) => void moveObject(n.id, Math.round(n.position.x), Math.round(n.position.y))}
+        onSelectionChange={onSelectionChange}
+        onPaneClick={onPaneClick}
+        onNodeDragStop={onNodeDragStop}
         onConnect={onConnect}
         isValidConnection={isValidConnection}
-        onNodesDelete={(deleted) => deleted.forEach((n) => void deleteObject(n.id))}
+        onDelete={onDelete}
         deleteKeyCode={["Delete", "Backspace"]}
+        multiSelectionKeyCode={["Shift", "Meta", "Control"]}
+        selectionKeyCode="Shift"
+        selectionOnDrag={false}
         snapToGrid
         snapGrid={[5, 5]}
         minZoom={0.05}
@@ -151,7 +201,6 @@ function Canvas() {
         fitViewOptions={{ maxZoom: 1.25 }}
         proOptions={{ hideAttribution: true }}
         connectionRadius={24}
-        fitView
       >
         <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="var(--grid-dot)" />
         <MiniMap

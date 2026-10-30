@@ -17,6 +17,7 @@ export default defineConfig({
       "/rpc": devserver,
       "/events": devserver,
       "/samples": devserver,
+      "/cancel": devserver,
     },
   },
   envPrefix: ["VITE_", "TAURI_ENV_"],

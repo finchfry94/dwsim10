@@ -53,9 +53,24 @@ export interface GraphEdge {
   kind: "material" | "energy";
 }
 
+/** What can be undone and redone, and whether the flowsheet has unsaved changes. */
+export interface History {
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Labels of the steps undo and redo would take ("Delete HT-1"). */
+  undo: string | null;
+  redo: string | null;
+  modified: boolean;
+}
+
 export interface Graph {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  history?: History;
+  /** After undo or redo: the step taken. */
+  done?: string;
+  /** After a paste: the new objects' ids. */
+  pasted?: string[];
 }
 
 export interface UnitSystem {

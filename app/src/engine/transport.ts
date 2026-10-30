@@ -24,7 +24,10 @@ export class EngineError extends Error {
 /** How the frontend reaches the engine: Tauri commands in the app, HTTP in a browser. */
 export interface Transport {
   readonly kind: "tauri" | "http";
-  call<T>(method: string, params?: Record<string, unknown>): Promise<T>;
+  /** A call given a `requestId` can be stopped with {@link Transport.cancel}. */
+  call<T>(method: string, params?: Record<string, unknown>, requestId?: string): Promise<T>;
+  /** Cancels the call made with this id; the call then fails with the Cancelled code. */
+  cancel(requestId: string): Promise<void>;
   /** Subscribes to engine notifications; returns the unsubscribe function. */
   listen(handler: (n: Notification) => void): () => void;
   samples(): Promise<SampleFile[]>;
@@ -35,13 +38,17 @@ export const isTauri = (): boolean => typeof window !== "undefined" && "__TAURI_
 function tauriTransport(): Transport {
   return {
     kind: "tauri",
-    async call<T>(method: string, params: Record<string, unknown> = {}) {
+    async call<T>(method: string, params: Record<string, unknown> = {}, requestId?: string) {
       const { invoke } = await import("@tauri-apps/api/core");
       try {
-        return await invoke<T>("engine_call", { method, params });
+        return await invoke<T>("engine_call", { method, params, requestId });
       } catch (e) {
         throw EngineError.from(e);
       }
+    },
+    async cancel(requestId) {
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("engine_cancel", { requestId });
     },
     listen(handler) {
       let stop: (() => void) | undefined;
@@ -67,13 +74,13 @@ function tauriTransport(): Transport {
 function httpTransport(base = ""): Transport {
   return {
     kind: "http",
-    async call<T>(method: string, params: Record<string, unknown> = {}) {
+    async call<T>(method: string, params: Record<string, unknown> = {}, requestId?: string) {
       let body: { result?: T; error?: unknown };
       try {
         const res = await fetch(`${base}/rpc`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ method, params }),
+          body: JSON.stringify({ method, params, requestId }),
         });
         body = await res.json();
       } catch (e) {
@@ -81,6 +88,13 @@ function httpTransport(base = ""): Transport {
       }
       if (body.error !== undefined) throw EngineError.from(body.error);
       return body.result as T;
+    },
+    async cancel(requestId) {
+      await fetch(`${base}/cancel`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ requestId }),
+      });
     },
     listen(handler) {
       const source = new EventSource(`${base}/events`);

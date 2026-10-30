@@ -1,4 +1,21 @@
-import { FilePlus2, FlaskConical, FolderOpen, LayoutGrid, Moon, Play, Save, Sun, Tags } from "lucide-react";
+import {
+  Command,
+  FilePlus2,
+  FlaskConical,
+  FolderOpen,
+  LayoutGrid,
+  ListChecks,
+  Moon,
+  Play,
+  Redo2,
+  Save,
+  SaveAll,
+  Square,
+  Sun,
+  Tags,
+  Undo2,
+} from "lucide-react";
+import { keyLabel } from "../lib/commands";
 import { COLOR_MODES, type ColorMode } from "../canvas/coloring";
 import { useApp } from "../state/store";
 
@@ -9,7 +26,7 @@ export function Toolbar({
   onToggleTheme,
 }: {
   onOpen: () => void;
-  onSave: () => void;
+  onSave: (saveAs?: boolean) => void;
   theme: "light" | "dark";
   onToggleTheme: () => void;
 }) {
@@ -19,8 +36,22 @@ export function Toolbar({
   const showTags = useApp((s) => s.showStreamTags);
   const engineStatus = useApp((s) => s.engineStatus);
   const autoSolve = useApp((s) => s.autoSolve);
-  const { newFlowsheet, solve, autoLayout, setColorMode, toggleStreamTags, openSetup, setAutoSolve } =
-    useApp.getState();
+  const history = useApp((s) => s.history);
+  const busy = useApp((s) => s.busy);
+  const {
+    newFlowsheet,
+    solve,
+    cancelSolve,
+    check,
+    undo,
+    redo,
+    autoLayout,
+    setColorMode,
+    toggleStreamTags,
+    openSetup,
+    setAutoSolve,
+    openPalette,
+  } = useApp.getState();
   const has = flowsheet !== null;
 
   return (
@@ -33,8 +64,45 @@ export function Toolbar({
         <button className="btn" onClick={onOpen} title="Open flowsheet (Ctrl+O)">
           <FolderOpen size={16} /> Open
         </button>
-        <button className="btn" onClick={onSave} disabled={!has} title="Save (Ctrl+S)">
+        <button
+          className="btn"
+          onClick={() => onSave()}
+          disabled={!has}
+          title={`Save (${keyLabel("Mod+S")})`}
+        >
           <Save size={16} /> Save
+          {history?.modified && <span className="dirty-dot" aria-label="unsaved changes" />}
+        </button>
+        <button
+          className="btn btn-icon"
+          onClick={() => onSave(true)}
+          disabled={!has}
+          title={`Save as… (${keyLabel("Mod+Shift+S")})`}
+          aria-label="Save as"
+        >
+          <SaveAll size={16} />
+        </button>
+      </div>
+      <div className="toolbar-group">
+        <button
+          className="btn btn-icon"
+          onClick={() => void undo()}
+          disabled={!history?.canUndo || busy || solving}
+          title={history?.undo ? `Undo ${history.undo} (${keyLabel("Mod+Z")})` : "Nothing to undo"}
+          aria-label="Undo"
+          data-testid="undo"
+        >
+          <Undo2 size={16} />
+        </button>
+        <button
+          className="btn btn-icon"
+          onClick={() => void redo()}
+          disabled={!history?.canRedo || busy || solving}
+          title={history?.redo ? `Redo ${history.redo} (${keyLabel("Mod+Shift+Z")})` : "Nothing to redo"}
+          aria-label="Redo"
+          data-testid="redo"
+        >
+          <Redo2 size={16} />
         </button>
       </div>
       <div className="toolbar-group">
@@ -48,14 +116,34 @@ export function Toolbar({
         </button>
       </div>
       <div className="toolbar-group">
+        {solving ? (
+          <button
+            className="btn btn-danger"
+            onClick={() => void cancelSolve()}
+            title="Stop solving (Esc)"
+            data-testid="cancel-solve"
+          >
+            <Square size={14} /> Cancel
+          </button>
+        ) : (
+          <button
+            className="btn btn-primary"
+            onClick={() => void solve()}
+            disabled={!has}
+            title="Solve (F5)"
+            data-testid="solve"
+          >
+            <Play size={16} /> Solve
+          </button>
+        )}
         <button
-          className="btn btn-primary"
-          onClick={() => void solve()}
+          className="btn"
+          onClick={() => void check()}
           disabled={!has || solving}
-          title="Solve (F5)"
-          data-testid="solve"
+          title="Check the flowsheet for problems (F7)"
+          data-testid="check"
         >
-          <Play size={16} /> {solving ? "Solving…" : "Solve"}
+          <ListChecks size={16} /> Check
         </button>
         <label className="toggle toolbar-toggle" title="Solve automatically after every edit">
           <input
@@ -115,6 +203,14 @@ export function Toolbar({
               ? "Starting engine…"
               : "Engine stopped"}
         </span>
+        <button
+          className="btn btn-icon"
+          onClick={() => openPalette(true)}
+          title={`Command palette (${keyLabel("Mod+K")})`}
+          aria-label="Command palette"
+        >
+          <Command size={16} />
+        </button>
         <button
           className="btn btn-icon"
           onClick={onToggleTheme}
