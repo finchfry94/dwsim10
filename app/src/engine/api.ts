@@ -19,6 +19,14 @@ import type {
   StreamTable,
   ToolInfo,
   ToolRun,
+  Reaction,
+  ReactionSet,
+  ReactionsCatalog,
+  SensitivityCase,
+  SensitivityResult,
+  OptimizerCase,
+  OptimizerResult,
+  ChoiceOption,
 } from "./types";
 
 const call = transport.call.bind(transport);
@@ -143,4 +151,33 @@ export const engine = {
   /** The stream table and every object's results as an .xlsx workbook, base64. */
   exportExcel: (flowsheetId: string) =>
     call<{ name: string; base64: string }>("export.xlsx", { flowsheetId }),
+
+  reactions: (flowsheetId: string) => call<ReactionsCatalog>("reactions.list", { flowsheetId }),
+  reaction: (flowsheetId: string, id: string) => call<Reaction>("reactions.get", { flowsheetId, id }),
+  saveReaction: (flowsheetId: string, reaction: Reaction) =>
+    call<Reaction>("reactions.save", { flowsheetId, reaction }),
+  deleteReaction: (flowsheetId: string, id: string) =>
+    call<ReactionsCatalog>("reactions.delete", { flowsheetId, id }),
+  duplicateReaction: (flowsheetId: string, id: string) =>
+    call<Reaction>("reactions.duplicate", { flowsheetId, id }),
+  saveReactionSet: (flowsheetId: string, set: ReactionSet) =>
+    call<ReactionSet>("reactionSets.save", { flowsheetId, set }),
+  deleteReactionSet: (flowsheetId: string, id: string) =>
+    call<ReactionsCatalog>("reactionSets.delete", { flowsheetId, id }),
+
+  sensitivityCases: (flowsheetId: string) => call<SensitivityCase[]>("sensitivity.list", { flowsheetId }),
+  saveSensitivity: (flowsheetId: string, study: SensitivityCase) =>
+    call<SensitivityCase>("sensitivity.save", { flowsheetId, study }),
+  deleteSensitivity: (flowsheetId: string, index: number) =>
+    call<SensitivityCase[]>("sensitivity.delete", { flowsheetId, index }),
+  runSensitivity: (flowsheetId: string, index: number, requestId?: string) =>
+    call<SensitivityResult>("sensitivity.run", { flowsheetId, index }, requestId),
+  optimizerMethods: () => call<ChoiceOption[]>("optimizer.methods"),
+  optimizerCases: (flowsheetId: string) => call<OptimizerCase[]>("optimizer.list", { flowsheetId }),
+  saveOptimizer: (flowsheetId: string, study: OptimizerCase) =>
+    call<OptimizerCase>("optimizer.save", { flowsheetId, study }),
+  deleteOptimizer: (flowsheetId: string, index: number) =>
+    call<OptimizerCase[]>("optimizer.delete", { flowsheetId, index }),
+  runOptimizer: (flowsheetId: string, index: number, requestId?: string) =>
+    call<OptimizerResult>("optimizer.run", { flowsheetId, index }, requestId),
 };

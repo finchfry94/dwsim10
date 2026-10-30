@@ -1,4 +1,5 @@
 import {
+  Atom,
   ChartSpline,
   Command,
   FileText,
@@ -16,6 +17,7 @@ import {
   Sun,
   Tags,
   Undo2,
+  Target,
   Wrench,
 } from "lucide-react";
 import { keyLabel } from "../lib/commands";
@@ -61,19 +63,25 @@ export function Toolbar({
     <header className="toolbar">
       <div className="brand">DWSIM</div>
       <div className="toolbar-group">
-        <button className="btn" onClick={() => void newFlowsheet()} title="New flowsheet">
-          <FilePlus2 size={16} /> New
+        <button
+          className="btn btn-icon"
+          onClick={() => void newFlowsheet()}
+          title="New flowsheet"
+          aria-label="New"
+        >
+          <FilePlus2 size={16} />
         </button>
-        <button className="btn" onClick={onOpen} title="Open flowsheet (Ctrl+O)">
-          <FolderOpen size={16} /> Open
+        <button className="btn btn-icon" onClick={onOpen} title="Open flowsheet (Ctrl+O)" aria-label="Open">
+          <FolderOpen size={16} />
         </button>
         <button
-          className="btn"
+          className="btn btn-icon"
           onClick={() => onSave()}
           disabled={!has}
           title={`Save (${keyLabel("Mod+S")})`}
+          aria-label="Save"
         >
-          <Save size={16} /> Save
+          <Save size={16} />
           {history?.modified && <span className="dirty-dot" aria-label="unsaved changes" />}
         </button>
         <button
@@ -116,6 +124,15 @@ export function Toolbar({
           title="Compounds, property package and units"
         >
           <FlaskConical size={16} /> Setup
+        </button>
+        <button
+          className="btn"
+          onClick={() => useApp.getState().openReactions(true)}
+          disabled={!has}
+          title="Reactions and reaction sets"
+          data-testid="reactions"
+        >
+          <Atom size={16} /> Reactions
         </button>
       </div>
       <div className="toolbar-group">
@@ -177,6 +194,15 @@ export function Toolbar({
           data-testid="tools"
         >
           <Wrench size={16} /> Tools
+        </button>
+        <button
+          className="btn"
+          onClick={() => useApp.getState().openStudies("sensitivity")}
+          disabled={!has}
+          title="Sensitivity analysis and optimizer"
+          data-testid="studies"
+        >
+          <Target size={16} /> Studies
         </button>
         <button
           className="btn"

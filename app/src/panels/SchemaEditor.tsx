@@ -209,6 +209,15 @@ export function FieldRow({
           <span className="calculated-note">reached {formatNumber(field.calculated, 5)}</span>
         )}
         {field.kind === "choice" && <ChoiceInput field={field} disabled={disabled} onSet={onSet} />}
+        {field.id === "reactionSet" && (
+          <button
+            className="btn btn-ghost btn-sm"
+            onClick={() => useApp.getState().openReactions(true)}
+            data-testid="manage-reactions"
+          >
+            Manage reactions…
+          </button>
+        )}
         {field.kind === "bool" && (
           <input
             type="checkbox"

@@ -53,8 +53,11 @@ don't change.
 | `analysis.phaseEnvelope`, `analysis.binaryEnvelope` | phase envelopes (PT, PH, PS, TH, TS, VT, VP) and Txy/Pxy envelopes as chart series (cancellable) |
 | `tools.list`, `tools.run` | the engineering tools (hydrates, PSV and separator sizing, depressurization, true critical point, distillation curves, McCabe–Thiele): inputs as schema fields, results as sections, charts and tables (cancellable) |
 | `export.xlsx` | the stream table and every object's results as an Excel workbook (base64) |
+| `reactions.list/get/save/delete/duplicate`, `reactionSets.save/delete` | conversion, equilibrium, kinetic and heterogeneous catalytic reactions and the sets reactors run |
+| `sensitivity.list/save/delete/run` | sensitivity cases (kept in the file): one varied property, any number observed (cancellable, `study/progress`) |
+| `optimizer.methods/list/save/delete/run` | optimization cases: varied, objective, auxiliary and constraint variables, six DotNumerics methods; the optimum stays applied as one undo step |
 
-Notifications: `engine/ready`, `engine/log`, `solve/started`, `solve/finished`. The Rust client
+Notifications: `engine/ready`, `engine/log`, `solve/started`, `solve/finished`, `study/progress`. The Rust client
 adds `engine/stderr` and `engine/exited`.
 
 Port ids are `in-N` / `out-N` (the engine's connector indices) and `energy` (the energy
@@ -120,7 +123,11 @@ covers undo and redo, copy and paste, batch edits and the inserted stream. `Anal
 stream table against each stream, the report, a methane/ethane phase envelope and the ethanol/water
 azeotrope on a Txy diagram. `ToolTests` runs every tool (hydrates against a direct call of the
 engine's calculator, the others against sanity ranges), a solved pipe's profile and the Excel
-export.
+export. `ReactionStudyTests` builds a conversion reaction and runs it in a conversion reactor
+(the stated fraction converts), checks the refusals and the round trips of equilibrium
+reactions and sets, runs a sensitivity case (linear in the duty, which is put back) and the
+optimizer (simplex and bounded L-BFGS find the duty for a target temperature), and reopens
+saved files with their reactions and cases.
 
 Each tool is one class in `tools/DWSIM.Bridge/Tools/` that wraps the engine class its Avalonia
 window drives: it lists its inputs as schema fields (defaults from the flowsheet) and answers with
@@ -129,7 +136,8 @@ so adding a tool is bridge-only work.
 
 With the dev servers running, `NODE_PATH=$(npm root -g) node e2e/smoke.cjs` drives the UI end
 to end: the Cavett problem (with its stream table, the Excel export, the hydrate and critical-point
-tools on a stream, a phase envelope and the report), a new heater flowsheet (with delete and undo, duplicate, a check from
+tools on a stream, a phase envelope and the report), a new heater flowsheet (with a reaction
+built and balanced in the reactions dialog and a sensitivity run on the heater) (with delete and undo, duplicate, a check from
 the command palette), a column whose reflux ratio is changed in its editor, and a cancelled solve.
 
 ### Bundling
@@ -153,8 +161,9 @@ cancel solve, a diagnostics tab with jump-to-object, Save As, recent files and a
 guard. Results: a stream table (CSV export), phase and binary envelopes charted with their data,
 the engine's report (print to PDF, save as HTML), an Excel export, pipe profiles charted along the
 length, and a Tools dialog: natural gas hydrates, relief valve (API 520) and separator sizing,
-vessel depressurization, true critical point, distillation curves and McCabe–Thiele. Next: M5's
-advanced tools.
+vessel depressurization, true critical point, distillation curves and McCabe–Thiele. Reactions
+(all four types, reaction sets, a reactor's set picker links to them), sensitivity analysis and
+the optimizer (M5a). Next: dynamics, scripting, spreadsheet and scenarios (M5b).
 
 ### How undo works
 

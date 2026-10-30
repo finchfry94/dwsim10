@@ -17,10 +17,12 @@ from scratch (milestone M1 below), and every unit operation has an editor genera
 engine (M2), rigorous columns and the Adjust and Spec pickers included (M2b), and editing is
 comfortable (M3: undo, copy/paste, multi-select and alignment, command palette, cancel solve,
 diagnostics), and results can be read and analysed (M4a: stream table, phase and binary envelopes,
-report; M4b: engineering tools, pipe profiles, Excel export). See `app/README.md`.
+report; M4b: engineering tools, pipe profiles, Excel export), and reactions, sensitivity analysis
+and the optimizer are in (M5a). See `app/README.md`.
 
-Front-end milestones still to do: M3 leftovers (annotations, per-object solve progress), M5 advanced tools (reactions,
-sensitivity, optimizer, dynamics, scripting, spreadsheet, compound tools), M6 polish and shipping.
+Front-end milestones still to do: M3 leftovers (annotations, per-object solve progress), M5b
+(dynamics, scripting, spreadsheet, scenarios), M5c (compound creator and importers, petroleum
+characterization, data regression), M6 polish and shipping.
 Simulation settings (solver mode, tolerances) from M1 are also still to do.
 
 ## Target architecture

@@ -1762,3 +1762,97 @@ body {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
+.reactions-dialog,
+.studies-dialog {
+  width: min(1040px, calc(100vw - 32px));
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+}
+.studies-body {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+}
+.reactions-list .tools-item .block {
+  display: block;
+  font-weight: 400;
+}
+.stoich-table td,
+.stoich-table th {
+  padding: 2px 8px;
+}
+.stoich-table .input-sm {
+  width: 6.5rem;
+}
+.stoich-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 6px;
+}
+.stoich-summary .equation {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 13px;
+  flex-basis: 100%;
+}
+.ok-text {
+  color: var(--success, #2f855a);
+  font-weight: 600;
+}
+.warn-text {
+  color: var(--warning);
+}
+.kinetic-term {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px 6px;
+  margin: 6px 0;
+}
+.kinetic-term legend {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 0 4px;
+}
+.variable-picker {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.variable-picker .select {
+  max-width: 14rem;
+}
+.studies-form {
+  max-width: 720px;
+}
+.studies-range {
+  display: flex;
+  gap: 4px;
+}
+.studies-range .input,
+.studies-small .input {
+  width: 7rem;
+}
+.optimizer-variables td {
+  vertical-align: middle;
+}
+.optimizer-variables .input-sm {
+  width: 6rem;
+}
+.input.input-sm,
+.select.select-sm {
+  padding: 2px 6px;
+  font-size: 12px;
+  height: 26px;
+}
+.btn.btn-sm {
+  padding: 2px 8px;
+  font-size: 12px;
+}
+.optimizer-variables .variable-picker {
+  flex-wrap: nowrap;
+}
+.optimizer-variables .variable-picker .select {
+  max-width: 11rem;
+}

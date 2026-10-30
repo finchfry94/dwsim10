@@ -389,6 +389,146 @@ export interface ToolRun {
   warnings: string[];
 }
 
+// ---------------------------------------------------------------- reactions
+
+export type ReactionType = "Conversion" | "Equilibrium" | "Kinetic" | "Heterogeneous_Catalytic";
+
+export interface StoichiometryRow {
+  compound: string;
+  coefficient: number;
+  base: boolean;
+  directOrder: number;
+  reverseOrder: number;
+}
+
+export interface KineticTerm {
+  type: "Arrhenius" | "UserDefined";
+  a: number;
+  e: number;
+  eUnit: string;
+  expression: string;
+}
+
+/** One shape for all four reaction types; a type ignores the fields it does not use. */
+export interface Reaction {
+  id?: string;
+  type: ReactionType;
+  name: string;
+  description: string;
+  equation?: string;
+  heat?: number;
+  gibbs?: number;
+  components: StoichiometryRow[];
+  phase: string;
+  basis: string;
+  basisUnit: string;
+  rateUnit: string;
+  tmin: number;
+  tmax: number;
+  approach: number;
+  keq: "Gibbs" | "Expression" | "Constant";
+  expression: string;
+  constantKeq: number;
+  kinetics: "Expression" | "PythonScript";
+  script: string;
+  forward: KineticTerm;
+  reverse: KineticTerm;
+  numerator: string;
+  denominator: string;
+}
+
+export interface ReactionSet {
+  id?: string;
+  name: string;
+  description: string;
+  isDefault?: boolean;
+  reactions: { id: string; active: boolean; rank: number }[];
+}
+
+export interface ReactionCompound {
+  name: string;
+  formula: string;
+  molarWeight: number;
+  /** kJ/kmol, ideal gas at 25 °C. */
+  enthalpyOfFormation: number;
+  gibbsOfFormation: number;
+}
+
+export interface ReactionsCatalog {
+  reactions: { id: string; name: string; type: ReactionType; equation: string; description: string }[];
+  sets: ReactionSet[];
+  compounds: ReactionCompound[];
+  options: {
+    phases: string[];
+    bases: string[];
+    energyUnits: string[];
+    basisUnits: Record<string, string[]>;
+    rateUnits: Record<string, string[]>;
+    scripts: string[];
+  };
+}
+
+// ---------------------------------------------------------------- studies
+
+/** A property of an object, in a unit, as a study reads or sets it. */
+export interface StudyVariable {
+  object: string | null;
+  property: string | null;
+  unit: string | null;
+  /** "tag · property", from the engine. */
+  label?: string | null;
+}
+
+export interface SensitivityCase {
+  index?: number;
+  name: string;
+  description: string;
+  independent: StudyVariable & { from: number | null; to: number | null; points: number };
+  dependents: StudyVariable[];
+}
+
+export interface SensitivityResult {
+  cancelled: boolean;
+  charts: ChartData[];
+  table: { columns: string[]; rows: (number | null)[][] };
+  warnings: string[];
+}
+
+export type OptimizerVariableKind = "Independent" | "Dependent" | "Auxiliary" | "Constraint";
+
+export interface OptimizerVariable extends StudyVariable {
+  id?: string;
+  name: string;
+  kind: OptimizerVariableKind;
+  initial: number | null;
+  lower: number | null;
+  upper: number | null;
+  current?: number | null;
+}
+
+export interface OptimizerCase {
+  index?: number;
+  name: string;
+  description: string;
+  type: "Minimization" | "Maximization";
+  objective: "Variable" | "Expression";
+  expression: string;
+  method: string;
+  maxIterations: number;
+  tolerance: number;
+  epsilon: number;
+  barrier: number;
+  variables: OptimizerVariable[];
+}
+
+export interface OptimizerResult extends OptimizerCase {
+  cancelled: boolean;
+  error: string | null;
+  evaluations: number;
+  best: number | null;
+  chart: ChartData;
+}
+
 export interface StreamTable {
   streams: { id: string; tag: string; calculated: boolean }[];
   rows: {

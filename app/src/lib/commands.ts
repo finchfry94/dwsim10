@@ -229,6 +229,27 @@ export function buildCommands(shell: ShellActions): Command[] {
       run: () => app().openAnalysis({ tab: "binary" }),
     },
     {
+      id: "setup.reactions",
+      label: "Reactions…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openReactions(true),
+    },
+    {
+      id: "tools.sensitivity",
+      label: "Sensitivity analysis…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openStudies("sensitivity"),
+    },
+    {
+      id: "tools.optimizer",
+      label: "Optimizer…",
+      group: "Tools",
+      enabled: hasFlowsheet,
+      run: () => app().openStudies("optimizer"),
+    },
+    {
       id: "tools.open",
       label: "Tools…",
       group: "Tools",

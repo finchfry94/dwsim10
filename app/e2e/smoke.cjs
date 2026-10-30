@@ -10,7 +10,8 @@
 // envelope and the report;
 // then sets a new simulation up in the wizard, builds feed -> heater -> product by drag and
 // drop, specifies the feed, sets the heater to an 80 °C outlet in its editor, and checks that
-// auto-solve brings the product to 80 °C. Last, opens the extractive distillation sample, changes
+// auto-solve brings the product to 80 °C; builds a reaction and runs a sensitivity analysis on
+// the heater. Last, opens the extractive distillation sample, changes
 // a column's reflux ratio in its editor and checks that the column re-solves. Along the way it
 // deletes and undoes, duplicates, checks the flowsheet from the command palette and cancels a solve.
 
@@ -208,6 +209,60 @@ async function main() {
   });
   await page.getByTestId("findings").waitFor();
   await shot("diagnostics");
+
+  // Reactions: a conversion reaction can only be saved once Balance has balanced the masses;
+  // saved, it joins the default set; deleted, it is gone.
+  await page.getByTestId("reactions").click();
+  const reactions = page.getByRole("dialog", { name: "Reactions" });
+  await reactions.getByLabel("Add a reaction").selectOption("Conversion");
+  const rx = reactions.getByTestId("reaction-editor");
+  await rx.getByLabel("Name", { exact: true }).fill("Test reaction");
+  await rx.getByLabel("Include Water").check();
+  await rx.getByLabel("Include Ethanol").check();
+  await rx.getByLabel("Coefficient of Water").fill("-1");
+  await rx.getByLabel("Coefficient of Ethanol").fill("1");
+  await rx.getByLabel("Water is the base component").check();
+  assert.ok(await rx.getByTestId("save-reaction").isDisabled(), "unbalanced reactions cannot be saved");
+  await rx.getByRole("button", { name: "Balance" }).click();
+  await rx.getByTestId("stoichiometry").getByText("OK", { exact: true }).waitFor();
+  await rx.getByTestId("save-reaction").click();
+  await reactions
+    .getByRole("button", { name: /^Default Set/ })
+    .getByText("1 reaction")
+    .waitFor({ timeout: 30_000 });
+  await reactions.getByRole("button", { name: /^Test reaction/ }).click();
+  await rx.getByRole("button", { name: "Delete" }).click();
+  await reactions
+    .getByRole("button", { name: /^Default Set/ })
+    .getByText("0 reactions")
+    .waitFor({ timeout: 30_000 });
+  await page.keyboard.press("Escape");
+  await reactions.waitFor({ state: "detached" });
+
+  // Sensitivity: vary the heater's outlet temperature and watch the heat it adds.
+  await page.getByTestId("studies").click();
+  const studies = page.getByRole("dialog", { name: "Studies" });
+  await studies.getByLabel("Independent variable object").selectOption({ label: heater });
+  await studies.getByLabel("Independent variable property").selectOption("PROP_HT_2");
+  const kelvin = (await studies.getByText(/^From, to/).innerText()).includes("(K)");
+  await studies.getByLabel("From", { exact: true }).fill(kelvin ? "330" : "57");
+  await studies.getByLabel("To", { exact: true }).fill(kelvin ? "360" : "87");
+  await studies.getByLabel("Points", { exact: true }).fill("4");
+  await studies.getByLabel("Dependent variable 1 object").selectOption({ label: heater });
+  await studies.getByLabel("Dependent variable 1 property").selectOption("PROP_HT_3");
+  await studies.getByTestId("run-study").click();
+  const sensitivity = studies.getByTestId("sensitivity-result");
+  await sensitivity.getByTestId("xy-chart").waitFor({ timeout: 120_000 });
+  const duties = await sensitivity.locator("tbody tr td:nth-child(2)").allInnerTexts();
+  assert.equal(duties.length, 4);
+  const values = duties.map((d) => Number(d.replace(/,/g, "")));
+  assert.ok(
+    values.every((v, i) => i === 0 || v > values[i - 1]),
+    `the duty rises: ${duties}`,
+  );
+  await shot("sensitivity");
+  await page.keyboard.press("Escape");
+  await studies.waitFor({ state: "detached" });
 
   // A rigorous column: change the reflux ratio in its editor; auto-solve re-solves the column
   // and the condenser duty and stage profile follow.

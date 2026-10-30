@@ -35,6 +35,11 @@ interface AppState {
   report: boolean;
   /** The tools dialog, on a tool, with an object to apply it to when opened from one. */
   tools: { toolId?: string; objectId?: string } | null;
+  reactions: boolean;
+  /** The studies dialog, on its sensitivity or optimizer tab. */
+  studies: "sensitivity" | "optimizer" | null;
+  /** The running study's progress, from the engine's study/progress notifications. */
+  studyProgress: { done: number; total: number; text: string } | null;
   shortcuts: boolean;
   /** Recently opened or saved files, newest first. */
   recent: string[];
@@ -84,6 +89,8 @@ interface AppState {
   openAnalysis(analysis: AppState["analysis"]): void;
   openReport(open: boolean): void;
   openTools(tools: AppState["tools"]): void;
+  openReactions(open: boolean): void;
+  openStudies(tab: AppState["studies"]): void;
   openShortcuts(open: boolean): void;
   /** True when there are no unsaved changes, or the user agrees to lose them. */
   confirmDiscard(): boolean;
@@ -260,6 +267,9 @@ export const useApp = create<AppState>((set, get) => {
     analysis: null,
     report: false,
     tools: null,
+    reactions: false,
+    studies: null,
+    studyProgress: null,
     palette: false,
     shortcuts: false,
     recent: readRecent(),
@@ -487,6 +497,8 @@ export const useApp = create<AppState>((set, get) => {
     openAnalysis: (analysis) => set({ analysis }),
     openReport: (report) => set({ report }),
     openTools: (tools) => set({ tools }),
+    openReactions: (reactions) => set({ reactions }),
+    openStudies: (studies) => set({ studies }),
     openShortcuts: (shortcuts) => set({ shortcuts }),
 
     confirmDiscard() {
@@ -563,6 +575,12 @@ export function connectNotifications(): () => void {
         break;
       case "solve/finished":
         useApp.setState({ solving: false });
+        break;
+      case "study/progress":
+        if (p.flowsheetId === useApp.getState().flowsheet?.id)
+          useApp.setState({
+            studyProgress: { done: Number(p.done), total: Number(p.total), text: String(p.text ?? "") },
+          });
         break;
     }
   };
